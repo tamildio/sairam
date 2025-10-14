@@ -3,7 +3,14 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "lucide-react";
+
+const TENANTS = [
+  { name: "Sudhaagar", rent: 2500 },
+  { name: "Rajalakshmi", rent: 3500 },
+  { name: "Babu", rent: 3500 },
+];
 
 interface RentBillFormProps {
   onGenerate: (data: BillData) => void;
@@ -40,6 +47,17 @@ export const RentBillForm = ({ onGenerate }: RentBillFormProps) => {
     }));
   };
 
+  const handleTenantSelect = (tenantName: string) => {
+    const tenant = TENANTS.find(t => t.name === tenantName);
+    if (tenant) {
+      setFormData(prev => ({
+        ...prev,
+        tenantName: tenant.name,
+        rentAmount: tenant.rent
+      }));
+    }
+  };
+
   return (
     <Card className="p-6">
       <h2 className="text-2xl font-bold text-foreground mb-6">Bill Details</h2>
@@ -60,14 +78,19 @@ export const RentBillForm = ({ onGenerate }: RentBillFormProps) => {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="tenantName">Tenant Name</Label>
-          <Input
-            id="tenantName"
-            value={formData.tenantName}
-            onChange={(e) => handleChange('tenantName', e.target.value)}
-            placeholder="Enter tenant name"
-            required
-          />
+          <Label htmlFor="tenantName">Select Tenant</Label>
+          <Select value={formData.tenantName} onValueChange={handleTenantSelect} required>
+            <SelectTrigger>
+              <SelectValue placeholder="Choose a tenant" />
+            </SelectTrigger>
+            <SelectContent>
+              {TENANTS.map((tenant) => (
+                <SelectItem key={tenant.name} value={tenant.name}>
+                  {tenant.name} - ₹{tenant.rent}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -118,7 +141,10 @@ export const RentBillForm = ({ onGenerate }: RentBillFormProps) => {
             onChange={(e) => handleChange('rentAmount', e.target.value)}
             placeholder="0"
             required
+            className="bg-secondary/50"
+            disabled
           />
+          <p className="text-xs text-muted-foreground">Auto-filled based on selected tenant</p>
         </div>
 
         <Button type="submit" className="w-full">
