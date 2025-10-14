@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Calendar } from "lucide-react";
 
 const TENANTS = [
@@ -32,7 +32,7 @@ export const RentBillForm = ({ onGenerate }: RentBillFormProps) => {
     lastMonthReading: 0,
     currentMonthReading: 0,
     rentAmount: 0,
-    ebRatePerUnit: 5,
+    ebRatePerUnit: 7,
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -60,8 +60,7 @@ export const RentBillForm = ({ onGenerate }: RentBillFormProps) => {
 
   return (
     <Card className="p-6">
-      <h2 className="text-2xl font-bold text-foreground mb-6">Bill Details</h2>
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-6">
         <div className="space-y-2">
           <Label htmlFor="date">Receipt Date</Label>
           <div className="relative">
@@ -77,20 +76,18 @@ export const RentBillForm = ({ onGenerate }: RentBillFormProps) => {
           </div>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="tenantName">Select Tenant</Label>
-          <Select value={formData.tenantName} onValueChange={handleTenantSelect} required>
-            <SelectTrigger>
-              <SelectValue placeholder="Choose a tenant" />
-            </SelectTrigger>
-            <SelectContent>
-              {TENANTS.map((tenant) => (
-                <SelectItem key={tenant.name} value={tenant.name}>
+        <div className="space-y-3">
+          <Label>Select Tenant</Label>
+          <RadioGroup value={formData.tenantName} onValueChange={handleTenantSelect} required>
+            {TENANTS.map((tenant) => (
+              <div key={tenant.name} className="flex items-center space-x-2 border rounded-lg p-3 hover:bg-secondary/50 transition-colors">
+                <RadioGroupItem value={tenant.name} id={tenant.name} />
+                <Label htmlFor={tenant.name} className="flex-1 cursor-pointer font-normal">
                   {tenant.name} - ₹{tenant.rent}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+                </Label>
+              </div>
+            ))}
+          </RadioGroup>
         </div>
 
         <div className="grid grid-cols-2 gap-4">

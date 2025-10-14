@@ -1,29 +1,56 @@
 import { useState } from "react";
 import { RentBillForm, BillData } from "@/components/RentBillForm";
 import { RentBillPreview } from "@/components/RentBillPreview";
-import { FileText } from "lucide-react";
+import { FileText, ArrowLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 const Index = () => {
   const [billData, setBillData] = useState<BillData | null>(null);
+  const [showBill, setShowBill] = useState(false);
+
+  const handleGenerate = (data: BillData) => {
+    setBillData(data);
+    setShowBill(true);
+  };
+
+  const handleBack = () => {
+    setShowBill(false);
+  };
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="container max-w-6xl mx-auto py-8 px-4">
-        <header className="text-center mb-12">
+      <div className="container max-w-6xl mx-auto py-4 md:py-8 px-4">
+        <header className="text-center mb-6 md:mb-12">
           <div className="flex items-center justify-center mb-4">
             <div className="bg-primary/10 p-3 rounded-full">
-              <FileText className="h-8 w-8 text-primary" />
+              <FileText className="h-6 w-6 md:h-8 md:w-8 text-primary" />
             </div>
           </div>
-          <h1 className="text-4xl font-bold text-foreground mb-2">
+          <h1 className="text-2xl md:text-4xl font-bold text-foreground mb-2">
             Rent Bill Generator
           </h1>
-          <p className="text-muted-foreground text-lg">
+          <p className="text-muted-foreground text-sm md:text-lg">
             Create professional rent receipts with electricity charges
           </p>
         </header>
 
-        <div className="grid md:grid-cols-2 gap-8">
+        {/* Mobile: Show either form or bill */}
+        <div className="md:hidden">
+          {!showBill ? (
+            <RentBillForm onGenerate={handleGenerate} />
+          ) : (
+            <div className="space-y-4">
+              <Button onClick={handleBack} variant="outline" className="w-full">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to Form
+              </Button>
+              {billData && <RentBillPreview data={billData} />}
+            </div>
+          )}
+        </div>
+
+        {/* Desktop: Show both side by side */}
+        <div className="hidden md:grid md:grid-cols-2 gap-8">
           <div>
             <RentBillForm onGenerate={setBillData} />
           </div>
@@ -42,26 +69,6 @@ const Index = () => {
           </div>
         </div>
       </div>
-
-      <style>{`
-        @media print {
-          body * {
-            visibility: hidden;
-          }
-          #bill-preview, #bill-preview * {
-            visibility: visible;
-          }
-          #bill-preview {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-          }
-          .print\\:hidden {
-            display: none !important;
-          }
-        }
-      `}</style>
     </div>
   );
 };
