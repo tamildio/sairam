@@ -23,7 +23,7 @@ export type Database = {
           eb_reading_this_month: number
           id: string
           receipt_date: string
-          received_date: string
+          received_date: string | null
           rent_amount: number
           tenant_name: string
           total_amount: number
@@ -37,7 +37,7 @@ export type Database = {
           eb_reading_this_month: number
           id?: string
           receipt_date: string
-          received_date: string
+          received_date?: string | null
           rent_amount: number
           tenant_name: string
           total_amount: number
@@ -51,7 +51,7 @@ export type Database = {
           eb_reading_this_month?: number
           id?: string
           receipt_date?: string
-          received_date?: string
+          received_date?: string | null
           rent_amount?: number
           tenant_name?: string
           total_amount?: number

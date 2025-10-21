@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,20 +25,23 @@ export interface BillData {
   currentMonthReading: number;
   rentAmount: number;
   ebRatePerUnit: number;
-  receivedDate: string;
 }
 
 export const RentBillForm = ({ onGenerate }: RentBillFormProps) => {
   const [formData, setFormData] = useState<BillData>({
     date: new Date().toISOString().split('T')[0],
-    tenantName: "",
+    tenantName: TENANTS[0].name,
     lastMonthReading: 0,
     currentMonthReading: 0,
-    rentAmount: 0,
+    rentAmount: TENANTS[0].rent,
     ebRatePerUnit: 7,
-    receivedDate: new Date().toISOString().split('T')[0],
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Load the initial tenant's last reading on mount
+  useEffect(() => {
+    handleTenantSelect(TENANTS[0].name);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,7 +62,7 @@ export const RentBillForm = ({ onGenerate }: RentBillFormProps) => {
         eb_charges: ebCharges,
         rent_amount: formData.rentAmount,
         total_amount: totalAmount,
-        received_date: formData.receivedDate,
+        received_date: null,
       });
 
       if (error) throw error;
@@ -77,11 +80,11 @@ export const RentBillForm = ({ onGenerate }: RentBillFormProps) => {
   const handleChange = (field: keyof BillData, value: string) => {
     setFormData(prev => ({
       ...prev,
-      [field]: field === 'tenantName' || field === 'date' || field === 'receivedDate' ? value : parseFloat(value) || 0
+      [field]: field === 'tenantName' || field === 'date' ? value : parseFloat(value) || 0
     }));
   };
 
-  const handleTenantSelect = (tenantName: string) => {
+  const handleTenantSelect = async (tenantName: string) => {
     const tenant = TENANTS.find(t => t.name === tenantName);
     if (tenant) {
       setFormData(prev => ({
@@ -89,6 +92,22 @@ export const RentBillForm = ({ onGenerate }: RentBillFormProps) => {
         tenantName: tenant.name,
         rentAmount: tenant.rent
       }));
+
+      // Fetch the most recent reading for this tenant
+      const { data } = await supabase
+        .from('rent_receipts')
+        .select('eb_reading_this_month')
+        .eq('tenant_name', tenant.name)
+        .order('receipt_date', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (data?.eb_reading_this_month) {
+        setFormData(prev => ({
+          ...prev,
+          lastMonthReading: data.eb_reading_this_month,
+        }));
+      }
     }
   };
 
@@ -134,6 +153,8 @@ export const RentBillForm = ({ onGenerate }: RentBillFormProps) => {
               onChange={(e) => handleChange('lastMonthReading', e.target.value)}
               placeholder="0"
               required
+              className="bg-secondary/50"
+              disabled
             />
           </div>
 
@@ -176,21 +197,6 @@ export const RentBillForm = ({ onGenerate }: RentBillFormProps) => {
             disabled
           />
           <p className="text-xs text-muted-foreground">Auto-filled based on selected tenant</p>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="receivedDate">Payment Received Date</Label>
-          <div className="relative">
-            <Input
-              id="receivedDate"
-              type="date"
-              value={formData.receivedDate}
-              onChange={(e) => handleChange('receivedDate', e.target.value)}
-              required
-              className="pl-10"
-            />
-            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-          </div>
         </div>
 
         <Button type="submit" className="w-full" disabled={isSubmitting}>

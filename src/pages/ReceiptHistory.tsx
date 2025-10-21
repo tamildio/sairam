@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Receipt } from "lucide-react";
 import { format } from "date-fns";
+import { toast } from "sonner";
 import {
   Table,
   TableBody,
@@ -53,6 +54,25 @@ const ReceiptHistory = () => {
     }
   };
 
+  const handleRecordPayment = async (receiptId: string) => {
+    const paymentDate = format(new Date(), 'yyyy-MM-dd');
+    
+    try {
+      const { error } = await supabase
+        .from('rent_receipts')
+        .update({ received_date: paymentDate })
+        .eq('id', receiptId);
+
+      if (error) throw error;
+
+      toast.success("Payment date recorded successfully!");
+      fetchAllReceipts();
+    } catch (error) {
+      console.error("Error recording payment:", error);
+      toast.error("Failed to record payment date");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <div className="container max-w-7xl mx-auto py-8 px-4">
@@ -92,11 +112,13 @@ const ReceiptHistory = () => {
                     <TableRow>
                       <TableHead>Receipt Date</TableHead>
                       <TableHead>Tenant</TableHead>
-                      <TableHead className="text-right">EB Units</TableHead>
+                      <TableHead className="text-right">Last Reading</TableHead>
+                      <TableHead className="text-right">Current Reading</TableHead>
+                      <TableHead className="text-right">Units</TableHead>
                       <TableHead className="text-right">EB Charges</TableHead>
                       <TableHead className="text-right">Rent</TableHead>
                       <TableHead className="text-right">Total</TableHead>
-                      <TableHead>Received Date</TableHead>
+                      <TableHead>Payment Date</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -107,6 +129,12 @@ const ReceiptHistory = () => {
                         </TableCell>
                         <TableCell className="font-medium">
                           {receipt.tenant_name}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {receipt.eb_reading_last_month.toFixed(0)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {receipt.eb_reading_this_month.toFixed(0)}
                         </TableCell>
                         <TableCell className="text-right">
                           {receipt.units_consumed.toFixed(0)}
@@ -121,7 +149,16 @@ const ReceiptHistory = () => {
                           ₹{receipt.total_amount.toFixed(2)}
                         </TableCell>
                         <TableCell>
-                          {format(new Date(receipt.received_date), 'MMM dd, yyyy')}
+                          {receipt.received_date 
+                            ? format(new Date(receipt.received_date), 'MMM dd, yyyy')
+                            : <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => handleRecordPayment(receipt.id)}
+                              >
+                                Record Payment
+                              </Button>
+                          }
                         </TableCell>
                       </TableRow>
                     ))}
