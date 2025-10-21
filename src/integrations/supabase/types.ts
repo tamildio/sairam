@@ -14,7 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      rent_receipts: {
+        Row: {
+          created_at: string | null
+          eb_charges: number
+          eb_rate_per_unit: number
+          eb_reading_last_month: number
+          eb_reading_this_month: number
+          id: string
+          receipt_date: string
+          received_date: string
+          rent_amount: number
+          tenant_name: string
+          total_amount: number
+          units_consumed: number
+        }
+        Insert: {
+          created_at?: string | null
+          eb_charges: number
+          eb_rate_per_unit: number
+          eb_reading_last_month: number
+          eb_reading_this_month: number
+          id?: string
+          receipt_date: string
+          received_date: string
+          rent_amount: number
+          tenant_name: string
+          total_amount: number
+          units_consumed: number
+        }
+        Update: {
+          created_at?: string | null
+          eb_charges?: number
+          eb_rate_per_unit?: number
+          eb_reading_last_month?: number
+          eb_reading_this_month?: number
+          id?: string
+          receipt_date?: string
+          received_date?: string
+          rent_amount?: number
+          tenant_name?: string
+          total_amount?: number
+          units_consumed?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

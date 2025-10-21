@@ -5,6 +5,8 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Calendar } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const TENANTS = [
   { name: "Sudhaagar", rent: 2500 },
@@ -23,6 +25,7 @@ export interface BillData {
   currentMonthReading: number;
   rentAmount: number;
   ebRatePerUnit: number;
+  receivedDate: string;
 }
 
 export const RentBillForm = ({ onGenerate }: RentBillFormProps) => {
@@ -33,17 +36,48 @@ export const RentBillForm = ({ onGenerate }: RentBillFormProps) => {
     currentMonthReading: 0,
     rentAmount: 0,
     ebRatePerUnit: 7,
+    receivedDate: new Date().toISOString().split('T')[0],
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onGenerate(formData);
+    setIsSubmitting(true);
+
+    try {
+      const unitsConsumed = formData.currentMonthReading - formData.lastMonthReading;
+      const ebCharges = unitsConsumed * formData.ebRatePerUnit;
+      const totalAmount = formData.rentAmount + ebCharges;
+
+      const { error } = await supabase.from('rent_receipts').insert({
+        receipt_date: formData.date,
+        tenant_name: formData.tenantName,
+        eb_reading_last_month: formData.lastMonthReading,
+        eb_reading_this_month: formData.currentMonthReading,
+        eb_rate_per_unit: formData.ebRatePerUnit,
+        units_consumed: unitsConsumed,
+        eb_charges: ebCharges,
+        rent_amount: formData.rentAmount,
+        total_amount: totalAmount,
+        received_date: formData.receivedDate,
+      });
+
+      if (error) throw error;
+
+      toast.success("Receipt saved successfully!");
+      onGenerate(formData);
+    } catch (error) {
+      console.error("Error saving receipt:", error);
+      toast.error("Failed to save receipt");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleChange = (field: keyof BillData, value: string) => {
     setFormData(prev => ({
       ...prev,
-      [field]: field === 'tenantName' || field === 'date' ? value : parseFloat(value) || 0
+      [field]: field === 'tenantName' || field === 'date' || field === 'receivedDate' ? value : parseFloat(value) || 0
     }));
   };
 
@@ -144,8 +178,23 @@ export const RentBillForm = ({ onGenerate }: RentBillFormProps) => {
           <p className="text-xs text-muted-foreground">Auto-filled based on selected tenant</p>
         </div>
 
-        <Button type="submit" className="w-full">
-          Generate Bill
+        <div className="space-y-2">
+          <Label htmlFor="receivedDate">Payment Received Date</Label>
+          <div className="relative">
+            <Input
+              id="receivedDate"
+              type="date"
+              value={formData.receivedDate}
+              onChange={(e) => handleChange('receivedDate', e.target.value)}
+              required
+              className="pl-10"
+            />
+            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+          </div>
+        </div>
+
+        <Button type="submit" className="w-full" disabled={isSubmitting}>
+          {isSubmitting ? "Saving..." : "Generate Bill"}
         </Button>
       </form>
     </Card>

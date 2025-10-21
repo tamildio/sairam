@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { RentBillForm, BillData } from "@/components/RentBillForm";
 import { RentBillPreview } from "@/components/RentBillPreview";
+import { RecentReceipts } from "@/components/RecentReceipts";
 import { FileText, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 const Index = () => {
@@ -18,20 +19,28 @@ const Index = () => {
         
 
         {/* Mobile: Show either form or bill */}
-        <div className="md:hidden">
-          {!showBill ? <RentBillForm onGenerate={handleGenerate} /> : <div className="space-y-4">
+        <div className="md:hidden space-y-6">
+          {!showBill ? (
+            <>
+              <RentBillForm onGenerate={handleGenerate} />
+              <RecentReceipts />
+            </>
+          ) : (
+            <div className="space-y-4">
               <Button onClick={handleBack} variant="outline" className="w-full">
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Back to Form
               </Button>
               {billData && <RentBillPreview data={billData} />}
-            </div>}
+            </div>
+          )}
         </div>
 
         {/* Desktop: Show both side by side */}
         <div className="hidden md:grid md:grid-cols-2 gap-8">
-          <div>
+          <div className="space-y-8">
             <RentBillForm onGenerate={setBillData} />
+            <RecentReceipts />
           </div>
 
           <div>
