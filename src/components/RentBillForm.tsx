@@ -92,15 +92,12 @@ export const RentBillForm = ({ onGenerate }: RentBillFormProps) => {
 
       // Fetch the most recent reading for this tenant
       try {
-        const receipts = await fetchReceipts();
-        const tenantReceipts = receipts
-          .filter((r: any) => r.tenant_name === tenant.name)
-          .sort((a: any, b: any) => new Date(b.receipt_date).getTime() - new Date(a.receipt_date).getTime());
+        const receipts = await fetchReceipts(1, tenant.name);
 
-        if (tenantReceipts.length > 0 && tenantReceipts[0].eb_reading_this_month) {
+        if (receipts.length > 0 && receipts[0].eb_reading_this_month) {
           setFormData(prev => ({
             ...prev,
-            lastMonthReading: tenantReceipts[0].eb_reading_this_month,
+            lastMonthReading: receipts[0].eb_reading_this_month,
           }));
         }
       } catch (error) {

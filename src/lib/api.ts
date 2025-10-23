@@ -14,12 +14,12 @@ interface ReceiptData {
   received_date?: string | null;
 }
 
-export const fetchReceipts = async (limit?: number) => {
+export const fetchReceipts = async (limit?: number, tenant_name?: string) => {
   const session = getSession();
   if (!session) throw new Error('Not authenticated');
 
   const { data, error } = await supabase.functions.invoke('receipts-list', {
-    body: { token: session.token, limit }
+    body: { token: session.token, limit, tenant_name }
   });
 
   if (error) throw error;

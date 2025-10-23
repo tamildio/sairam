@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { token, limit } = await req.json();
+    const { token, limit, tenant_name } = await req.json();
 
     // Validate session token exists
     if (!token) {
@@ -31,6 +31,10 @@ serve(async (req) => {
       .from('rent_receipts')
       .select('*')
       .order('created_at', { ascending: false });
+
+    if (tenant_name) {
+      query = query.eq('tenant_name', tenant_name);
+    }
 
     if (limit) {
       query = query.limit(limit);
