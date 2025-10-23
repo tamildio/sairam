@@ -5,8 +5,8 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Calendar } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { createReceipt, fetchReceipts } from "@/lib/api";
 
 const TENANTS = [
   { name: "Sudhaagar", rent: 2500 },
@@ -52,7 +52,7 @@ export const RentBillForm = ({ onGenerate }: RentBillFormProps) => {
       const ebCharges = unitsConsumed * formData.ebRatePerUnit;
       const totalAmount = formData.rentAmount + ebCharges;
 
-      const { error } = await supabase.from('rent_receipts').insert({
+      await createReceipt({
         receipt_date: formData.date,
         tenant_name: formData.tenantName,
         eb_reading_last_month: formData.lastMonthReading,
@@ -65,12 +65,9 @@ export const RentBillForm = ({ onGenerate }: RentBillFormProps) => {
         received_date: null,
       });
 
-      if (error) throw error;
-
       toast.success("Receipt saved successfully!");
       onGenerate(formData);
     } catch (error) {
-      console.error("Error saving receipt:", error);
       toast.error("Failed to save receipt");
     } finally {
       setIsSubmitting(false);
@@ -94,19 +91,20 @@ export const RentBillForm = ({ onGenerate }: RentBillFormProps) => {
       }));
 
       // Fetch the most recent reading for this tenant
-      const { data } = await supabase
-        .from('rent_receipts')
-        .select('eb_reading_this_month')
-        .eq('tenant_name', tenant.name)
-        .order('receipt_date', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      try {
+        const receipts = await fetchReceipts();
+        const tenantReceipts = receipts
+          .filter((r: any) => r.tenant_name === tenant.name)
+          .sort((a: any, b: any) => new Date(b.receipt_date).getTime() - new Date(a.receipt_date).getTime());
 
-      if (data?.eb_reading_this_month) {
-        setFormData(prev => ({
-          ...prev,
-          lastMonthReading: data.eb_reading_this_month,
-        }));
+        if (tenantReceipts.length > 0 && tenantReceipts[0].eb_reading_this_month) {
+          setFormData(prev => ({
+            ...prev,
+            lastMonthReading: tenantReceipts[0].eb_reading_this_month,
+          }));
+        }
+      } catch (error) {
+        // Silently fail - last month reading stays at 0
       }
     }
   };

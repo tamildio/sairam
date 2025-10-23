@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { Receipt, ArrowRight } from "lucide-react";
 import { format } from "date-fns";
+import { fetchReceipts } from "@/lib/api";
 
 interface ReceiptRecord {
   id: string;
@@ -21,41 +21,15 @@ export const RecentReceipts = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetchReceipts();
-
-    // Subscribe to new receipts
-    const channel = supabase
-      .channel('receipts-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'rent_receipts'
-        },
-        () => {
-          fetchReceipts();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    loadReceipts();
   }, []);
 
-  const fetchReceipts = async () => {
+  const loadReceipts = async () => {
     try {
-      const { data, error } = await supabase
-        .from('rent_receipts')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(5);
-
-      if (error) throw error;
+      const data = await fetchReceipts(5);
       setReceipts(data || []);
     } catch (error) {
-      console.error("Error fetching receipts:", error);
+      // Error handled by API layer
     } finally {
       setLoading(false);
     }

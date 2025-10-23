@@ -1,21 +1,41 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { RentBillForm, BillData } from "@/components/RentBillForm";
 import { RentBillPreview } from "@/components/RentBillPreview";
 import { RecentReceipts } from "@/components/RecentReceipts";
-import { FileText, ArrowLeft } from "lucide-react";
+import { FileText, ArrowLeft, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { clearSession } from "@/lib/auth";
+import { toast } from "sonner";
+
 const Index = () => {
   const [billData, setBillData] = useState<BillData | null>(null);
   const [showBill, setShowBill] = useState(false);
+  const navigate = useNavigate();
+
   const handleGenerate = (data: BillData) => {
     setBillData(data);
     setShowBill(true);
   };
+
   const handleBack = () => {
     setShowBill(false);
   };
+
+  const handleLogout = () => {
+    clearSession();
+    navigate('/login');
+    toast.success("Logged out successfully");
+  };
+
   return <div className="min-h-screen bg-background">
       <div className="container max-w-6xl mx-auto py-4 md:py-8 px-4">
+        <div className="flex justify-end mb-4">
+          <Button variant="outline" size="sm" onClick={handleLogout}>
+            <LogOut className="mr-2 h-4 w-4" />
+            Logout
+          </Button>
+        </div>
         
 
         {/* Mobile: Show either form or bill */}

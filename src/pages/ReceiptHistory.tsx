@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Receipt } from "lucide-react";
+import { ArrowLeft, Receipt, LogOut } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { fetchReceipts, updateReceipt } from "@/lib/api";
+import { clearSession } from "@/lib/auth";
 import {
   Table,
   TableBody,
@@ -35,20 +36,15 @@ const ReceiptHistory = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetchAllReceipts();
+    loadReceipts();
   }, []);
 
-  const fetchAllReceipts = async () => {
+  const loadReceipts = async () => {
     try {
-      const { data, error } = await supabase
-        .from('rent_receipts')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
+      const data = await fetchReceipts();
       setReceipts(data || []);
     } catch (error) {
-      console.error("Error fetching receipts:", error);
+      // Error handled by API layer
     } finally {
       setLoading(false);
     }
@@ -58,35 +54,33 @@ const ReceiptHistory = () => {
     const paymentDate = format(new Date(), 'yyyy-MM-dd');
     
     try {
-      const { error } = await supabase
-        .from('rent_receipts')
-        .update({ received_date: paymentDate })
-        .eq('id', receiptId);
-
-      if (error) throw error;
-
+      await updateReceipt(receiptId, { received_date: paymentDate });
       toast.success("Payment date recorded successfully!");
-      fetchAllReceipts();
+      loadReceipts();
     } catch (error) {
-      console.error("Error recording payment:", error);
       toast.error("Failed to record payment date");
     }
+  };
+
+  const handleLogout = () => {
+    clearSession();
+    navigate('/login');
+    toast.success("Logged out successfully");
   };
 
   return (
     <div className="min-h-screen bg-background">
       <div className="container max-w-7xl mx-auto py-8 px-4">
         <div className="space-y-6">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center justify-between mb-4">
             <Button
               variant="outline"
               size="sm"
-              onClick={() => navigate('/')}
+              onClick={handleLogout}
             >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back
+              <LogOut className="mr-2 h-4 w-4" />
+              Logout
             </Button>
-            <h1 className="text-3xl font-bold">Receipt History</h1>
           </div>
 
           <Card className="p-6">
