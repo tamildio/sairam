@@ -128,7 +128,11 @@ export const RentBillForm = ({ onGenerate }: RentBillFormProps) => {
           <Label>Select Tenant</Label>
           <RadioGroup value={formData.tenantName} onValueChange={handleTenantSelect} required>
             {TENANTS.map((tenant) => (
-              <div key={tenant.name} className="flex items-center space-x-2 border rounded-lg p-3 hover:bg-secondary/50 transition-colors">
+              <div 
+                key={tenant.name} 
+                className="flex items-center space-x-2 border rounded-lg p-3 hover:bg-secondary/50 transition-colors cursor-pointer"
+                onClick={() => handleTenantSelect(tenant.name)}
+              >
                 <RadioGroupItem value={tenant.name} id={tenant.name} />
                 <Label htmlFor={tenant.name} className="flex-1 cursor-pointer font-normal">
                   {tenant.name} - ₹{tenant.rent}
@@ -148,8 +152,6 @@ export const RentBillForm = ({ onGenerate }: RentBillFormProps) => {
               onChange={(e) => handleChange('lastMonthReading', e.target.value)}
               placeholder="0"
               required
-              className="bg-secondary/50"
-              disabled
             />
           </div>
 
