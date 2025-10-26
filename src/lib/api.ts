@@ -1,5 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
-import { getSession } from "./auth";
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 interface ReceiptData {
   receipt_date: string;
@@ -15,51 +14,65 @@ interface ReceiptData {
   payment_mode?: string | null;
 }
 
-export const fetchReceipts = async (limit?: number, tenant_name?: string) => {
-  const session = getSession();
-  if (!session) throw new Error('Not authenticated');
-
-  const { data, error } = await supabase.functions.invoke('receipts-list', {
-    body: { token: session.token, limit, tenant_name }
+// Helper function to make API calls
+const apiCall = async (endpoint: string, options: RequestInit = {}) => {
+  const url = `${API_BASE_URL}${endpoint}`;
+  console.log(`Making API call to: ${url}`, options);
+  
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
   });
 
-  if (error) throw error;
+  console.log(`API response status: ${response.status}`);
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+    console.error('API error:', errorData);
+    throw new Error(errorData.error || `HTTP ${response.status}`);
+  }
+
+  const data = await response.json();
+  console.log('API response data:', data);
+  return data;
+};
+
+export const fetchReceipts = async (limit?: number, tenant_name?: string) => {
+  const params = new URLSearchParams();
+  if (limit) params.append('limit', limit.toString());
+  if (tenant_name) params.append('tenant_name', tenant_name);
+  
+  const queryString = params.toString();
+  const endpoint = `/api/receipts${queryString ? `?${queryString}` : ''}`;
+  
+  const data = await apiCall(endpoint);
   return data.data;
 };
 
 export const createReceipt = async (receipt: ReceiptData) => {
-  const session = getSession();
-  if (!session) throw new Error('Not authenticated');
-
-  const { data, error } = await supabase.functions.invoke('receipts-create', {
-    body: { token: session.token, receipt }
+  console.log("🌐 createReceipt called with:", receipt);
+  const data = await apiCall('/api/receipts', {
+    method: 'POST',
+    body: JSON.stringify(receipt),
   });
-
-  if (error) throw error;
+  console.log("🌐 createReceipt response:", data);
   return data.data;
 };
 
 export const updateReceipt = async (id: string, updates: Partial<ReceiptData>) => {
-  const session = getSession();
-  if (!session) throw new Error('Not authenticated');
-
-  const { data, error } = await supabase.functions.invoke('receipts-update', {
-    body: { token: session.token, id, updates }
+  const data = await apiCall(`/api/receipts/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(updates),
   });
-
-  if (error) throw error;
   return data.data;
 };
 
 export const deleteReceipt = async (id: string) => {
-  const session = getSession();
-  if (!session) throw new Error('Not authenticated');
-
-  const { data, error } = await supabase
-    .from('rent_receipts')
-    .delete()
-    .eq('id', id);
-
-  if (error) throw error;
-  return data;
+  const data = await apiCall(`/api/receipts/${id}`, {
+    method: 'DELETE',
+  });
+  return data.data;
 };

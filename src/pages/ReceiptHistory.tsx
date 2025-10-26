@@ -6,7 +6,6 @@ import { ArrowLeft, Receipt, LogOut } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { fetchReceipts, updateReceipt } from "@/lib/api";
-import { clearSession } from "@/lib/auth";
 import { Badge } from "@/components/ui/badge";
 
 interface ReceiptRecord {
@@ -56,9 +55,8 @@ const ReceiptHistory = () => {
   };
 
   const handleLogout = () => {
-    clearSession();
-    navigate('/login');
-    toast.success("Logged out successfully");
+    // Logout functionality removed for development
+    console.log("Logout clicked - no action needed in development mode");
   };
 
   return (
