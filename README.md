@@ -1,73 +1,175 @@
-# Welcome to your Lovable project
+# Rent Receipt Management App
 
-## Project info
+A modern, local-first rent receipt management application built with React, TypeScript, and SQLite.
 
-**URL**: https://lovable.dev/projects/9613193a-11da-42b6-9884-9ea5531fd5ae
+## 🚀 Quick Start
 
-## How can I edit this code?
+### Prerequisites
+- Node.js (v16 or higher)
+- npm or yarn
 
-There are several ways of editing your application.
+### Installation & Running
 
-**Use Lovable**
+1. **Clone the repository**
+   ```bash
+   git clone <YOUR_GIT_URL>
+   cd home-rent
+   ```
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/9613193a-11da-42b6-9884-9ea5531fd5ae) and start prompting.
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
 
-Changes made via Lovable will be committed automatically to this repo.
+3. **Start the application**
+   ```bash
+   # Option 1: Use the startup script (recommended)
+   ./start.sh        # Linux/Mac
+   start.bat         # Windows
+   
+   # Option 2: Manual start
+   npm run dev       # Starts both backend and frontend
+   
+   # Option 3: Separate terminals
+   npm run server    # Backend only
+   npm run client    # Frontend only
+   ```
 
-**Use your preferred IDE**
+4. **Access the application**
+   - Frontend: http://localhost:5173
+   - Backend API: http://localhost:3001
+   - Default admin password: `admin123`
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+## 🏗️ Architecture
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+### Frontend
+- **React 18** with TypeScript
+- **Vite** for fast development and building
+- **shadcn/ui** components with Tailwind CSS
+- **React Router** for navigation
+- **React Hook Form** for form management
 
-Follow these steps:
+### Backend
+- **Express.js** REST API server
+- **SQLite** database with better-sqlite3
+- **JWT** authentication
+- **CORS** enabled for local development
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+### Database
+- **SQLite** file-based database (`server/data/rent_receipts.db`)
+- Same schema as the original Supabase setup
+- Automatic migrations and indexing
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+## 📊 Features
 
-# Step 3: Install the necessary dependencies.
-npm i
+- ✅ **Receipt Management**: Create, read, update, delete rent receipts
+- ✅ **Electricity Bill Tracking**: Calculate EB charges based on meter readings
+- ✅ **Tenant Management**: Filter receipts by tenant name
+- ✅ **Payment Recording**: Track payment dates and status
+- ✅ **Receipt Preview**: Generate printable receipt previews
+- ✅ **Local Storage**: Complete data independence
+- ✅ **Authentication**: Simple password-based admin access
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+## 🔧 Configuration
+
+### Environment Variables
+- `VITE_API_URL`: Frontend API URL (default: http://localhost:3001)
+- `PORT`: Backend server port (default: 3001)
+- `ADMIN_PASSWORD`: Admin login password (default: admin123)
+- `JWT_SECRET`: JWT signing secret (default: auto-generated)
+
+### Database
+The SQLite database is automatically created at `server/data/rent_receipts.db` on first run.
+
+## 🛠️ Development
+
+### Project Structure
+```
+├── src/                    # Frontend source code
+│   ├── components/         # React components
+│   ├── lib/               # API and utility functions
+│   ├── pages/             # Page components
+│   └── hooks/             # Custom React hooks
+├── server/                # Backend source code
+│   ├── data/              # SQLite database files
+│   ├── auth.js            # Authentication logic
+│   ├── database.js        # Database operations
+│   └── server.js          # Express server
+└── public/                # Static assets
 ```
 
-**Edit a file directly in GitHub**
+### Available Scripts
+- `npm run dev` - Start both backend and frontend
+- `npm run client` - Start frontend only
+- `npm run server` - Start backend only
+- `npm run build` - Build for production
+- `npm run preview` - Preview production build
+- `npm run lint` - Run ESLint
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## 🔒 Security
 
-**Use GitHub Codespaces**
+- JWT-based authentication with 24-hour expiration
+- Password-protected admin access
+- CORS configured for local development
+- SQL injection protection via prepared statements
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## 📱 Usage
 
-## What technologies are used for this project?
+1. **Login**: Use the default password `admin123` or set your own via environment variables
+2. **Create Receipt**: Fill out the rent receipt form with tenant and electricity bill details
+3. **View History**: Browse all receipts with filtering options
+4. **Update Payments**: Mark receipts as paid with payment dates
+5. **Export/Print**: Generate printable receipt previews
 
-This project is built with:
+## 🚀 Deployment
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+### Local Production
+```bash
+npm run build
+npm start
+```
 
-## How can I deploy this project?
+### Docker (Optional)
+```dockerfile
+FROM node:18-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+COPY . .
+RUN npm run build
+EXPOSE 3001
+CMD ["npm", "start"]
+```
 
-Simply open [Lovable](https://lovable.dev/projects/9613193a-11da-42b6-9884-9ea5531fd5ae) and click on Share -> Publish.
+## 🤝 Contributing
 
-## Can I connect a custom domain to my Lovable project?
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
 
-Yes, you can!
+## 📄 License
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+This project is open source and available under the MIT License.
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+## 🆘 Troubleshooting
+
+### Common Issues
+
+**Server won't start**
+- Check if port 3001 is available
+- Ensure Node.js is installed
+- Check server logs for errors
+
+**Frontend can't connect**
+- Verify backend server is running
+- Check CORS configuration
+- Verify API URL in environment variables
+
+**Database issues**
+- Check file permissions for `server/data/` directory
+- Ensure SQLite is properly installed
+- Verify database file is not corrupted
+
+For more help, see the [Migration Guide](MIGRATION_README.md).

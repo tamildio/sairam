@@ -1,7 +1,7 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { BillData } from "./RentBillForm";
-import { Download, Trash2 } from "lucide-react";
+import { Download } from "lucide-react";
 import html2canvas from "html2canvas";
 import { useRef } from "react";
 
@@ -9,12 +9,11 @@ interface RentBillPreviewProps {
   data: BillData;
   receiptId?: string;
   onSave?: () => void;
-  onDiscard?: () => void;
   receivedDate?: string | null;
   paymentMode?: string | null;
 }
 
-export const RentBillPreview = ({ data, receiptId, onSave, onDiscard, receivedDate, paymentMode }: RentBillPreviewProps) => {
+export const RentBillPreview = ({ data, receiptId, onSave, receivedDate, paymentMode }: RentBillPreviewProps) => {
   const billRef = useRef<HTMLDivElement>(null);
   const unitsConsumed = data.currentMonthReading - data.lastMonthReading;
   const ebCharges = unitsConsumed * data.ebRatePerUnit;
@@ -51,15 +50,11 @@ export const RentBillPreview = ({ data, receiptId, onSave, onDiscard, receivedDa
 
   return (
     <div className="space-y-4">
-      {receiptId && onSave && onDiscard && (
-        <div className="flex gap-2">
+      {receiptId && onSave && (
+        <div className="flex gap-2 justify-center">
           <Button onClick={handleSaveAndDownload} className="flex-1">
             <Download className="mr-2 h-4 w-4" />
             Save & Download
-          </Button>
-          <Button onClick={onDiscard} variant="destructive" className="flex-1">
-            <Trash2 className="mr-2 h-4 w-4" />
-            Discard
           </Button>
         </div>
       )}

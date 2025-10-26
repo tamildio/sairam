@@ -4,12 +4,11 @@ import { RentBillForm, BillData } from "@/components/RentBillForm";
 import { RentBillPreview } from "@/components/RentBillPreview";
 import { PaymentModal } from "@/components/PaymentModal";
 import { ReceiptDetailModal } from "@/components/ReceiptDetailModal";
-import { FileText, ArrowLeft, LogOut, Receipt } from "lucide-react";
+import { FileText, ArrowLeft, Receipt } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { clearSession } from "@/lib/auth";
 import { toast } from "sonner";
 import { fetchReceipts, updateReceipt, deleteReceipt } from "@/lib/api";
 import { format } from "date-fns";
@@ -56,9 +55,16 @@ const Index = () => {
   const navigate = useNavigate();
 
   const handleGenerate = (data: BillData, id: string) => {
+    console.log("🎯 handleGenerate called with:", { data, id });
+    console.log("📊 Setting state:", {
+      billData: data,
+      receiptId: id,
+      showBill: true
+    });
     setBillData(data);
     setReceiptId(id);
     setShowBill(true);
+    console.log("✅ State updated, bill should now be visible");
   };
 
   const handleBack = () => {
@@ -75,26 +81,7 @@ const Index = () => {
     toast.success("Receipt saved to history!");
   };
 
-  const handleDiscard = async () => {
-    if (!receiptId) return;
-    
-    try {
-      const { updateReceipt } = await import("@/lib/api");
-      await updateReceipt(receiptId, { received_date: '1970-01-01' }); // Mark as discarded
-      setShowBill(false);
-      setBillData(null);
-      setReceiptId(null);
-      toast.success("Receipt discarded");
-    } catch (error) {
-      toast.error("Failed to discard receipt");
-    }
-  };
 
-  const handleLogout = () => {
-    clearSession();
-    navigate('/login');
-    toast.success("Logged out successfully");
-  };
 
   const loadReceipts = async () => {
     setLoading(true);
@@ -172,13 +159,7 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="container max-w-6xl mx-auto py-4 md:py-8 px-4">
-        <div className="flex justify-end mb-4">
-          <Button variant="outline" size="sm" onClick={handleLogout}>
-            <LogOut className="mr-2 h-4 w-4" />
-            Logout
-          </Button>
-        </div>
+      <div className="container max-w-[540px] mx-auto py-4 px-4">
 
         <Tabs defaultValue="generate" className="w-full">
           <TabsList className="grid w-full grid-cols-2 mb-6">
@@ -193,45 +174,44 @@ const Index = () => {
                 <RentBillForm onGenerate={handleGenerate} />
               ) : (
                 <div className="space-y-4">
-                  <Button onClick={handleBack} variant="outline" className="w-full">
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                    Back to Form
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button onClick={handleBack} variant="outline" className="flex-1">
+                      <ArrowLeft className="mr-2 h-4 w-4" />
+                      Back to Form
+                    </Button>
+                  </div>
                   {billData && (
                     <RentBillPreview 
                       data={billData} 
                       receiptId={receiptId || undefined}
                       onSave={handleSave}
-                      onDiscard={handleDiscard}
                     />
                   )}
                 </div>
               )}
             </div>
 
-            {/* Desktop: Show both side by side */}
-            <div className="hidden md:grid md:grid-cols-2 gap-8">
-              <div>
+            {/* Desktop: Show form or bill */}
+            <div className="hidden md:block">
+              {!showBill ? (
                 <RentBillForm onGenerate={handleGenerate} />
-              </div>
-
-              <div>
-                {billData ? (
-                  <RentBillPreview 
-                    data={billData} 
-                    receiptId={receiptId || undefined}
-                    onSave={handleSave}
-                    onDiscard={handleDiscard}
-                  />
-                ) : (
-                  <div className="h-full flex items-center justify-center">
-                    <div className="text-center text-muted-foreground">
-                      <FileText className="h-16 w-16 mx-auto mb-4 opacity-20" />
-                      <p className="text-lg">Fill in the form to generate a receipt</p>
-                    </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex gap-2">
+                    <Button onClick={handleBack} variant="outline" className="flex-1">
+                      <ArrowLeft className="mr-2 h-4 w-4" />
+                      Back to Form
+                    </Button>
                   </div>
-                )}
-              </div>
+                  {billData && (
+                    <RentBillPreview 
+                      data={billData} 
+                      receiptId={receiptId || undefined}
+                      onSave={handleSave}
+                    />
+                  )}
+                </div>
+              )}
             </div>
           </TabsContent>
 
