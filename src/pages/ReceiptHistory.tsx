@@ -7,14 +7,7 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { fetchReceipts, updateReceipt } from "@/lib/api";
 import { clearSession } from "@/lib/auth";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 
 interface ReceiptRecord {
   id: string;
@@ -91,84 +84,90 @@ const ReceiptHistory = () => {
             </Button>
           </div>
 
-          <Card className="p-6">
+          <div className="space-y-4">
             {loading ? (
-              <div className="text-center py-8">
-                <div className="text-muted-foreground">Loading receipts...</div>
-              </div>
+              <Card className="p-6">
+                <div className="text-center py-8">
+                  <div className="text-muted-foreground">Loading receipts...</div>
+                </div>
+              </Card>
             ) : receipts.length === 0 ? (
-              <div className="text-center py-12">
-                <Receipt className="h-16 w-16 mx-auto mb-4 text-muted-foreground/40" />
-                <h3 className="text-lg font-semibold mb-2">No Receipts Found</h3>
-                <p className="text-muted-foreground mb-4">
-                  You haven't generated any receipts yet
-                </p>
-                <Button onClick={() => navigate('/')}>
-                  Generate First Receipt
-                </Button>
-              </div>
+              <Card className="p-6">
+                <div className="text-center py-12">
+                  <Receipt className="h-16 w-16 mx-auto mb-4 text-muted-foreground/40" />
+                  <h3 className="text-lg font-semibold mb-2">No Receipts Found</h3>
+                  <p className="text-muted-foreground mb-4">
+                    You haven't generated any receipts yet
+                  </p>
+                  <Button onClick={() => navigate('/')}>
+                    Generate First Receipt
+                  </Button>
+                </div>
+              </Card>
             ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Receipt Date</TableHead>
-                      <TableHead>Tenant</TableHead>
-                      <TableHead className="text-right">Last Reading</TableHead>
-                      <TableHead className="text-right">Current Reading</TableHead>
-                      <TableHead className="text-right">Units</TableHead>
-                      <TableHead className="text-right">EB Charges</TableHead>
-                      <TableHead className="text-right">Rent</TableHead>
-                      <TableHead className="text-right">Total</TableHead>
-                      <TableHead>Payment Date</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {receipts.map((receipt) => (
-                      <TableRow key={receipt.id}>
-                        <TableCell>
+              receipts.map((receipt) => (
+                <Card key={receipt.id} className="p-4 sm:p-6">
+                  <div className="space-y-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <h3 className="font-semibold text-lg">{receipt.tenant_name}</h3>
+                        <p className="text-sm text-muted-foreground">
                           {format(new Date(receipt.receipt_date), 'MMM dd, yyyy')}
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {receipt.tenant_name}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {receipt.eb_reading_last_month.toFixed(0)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {receipt.eb_reading_this_month.toFixed(0)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {receipt.units_consumed.toFixed(0)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          ₹{receipt.eb_charges.toFixed(2)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          ₹{receipt.rent_amount.toFixed(2)}
-                        </TableCell>
-                        <TableCell className="text-right font-semibold">
-                          ₹{receipt.total_amount.toFixed(2)}
-                        </TableCell>
-                        <TableCell>
-                          {receipt.received_date 
-                            ? format(new Date(receipt.received_date), 'MMM dd, yyyy')
-                            : <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={() => handleRecordPayment(receipt.id)}
-                              >
-                                Record Payment
-                              </Button>
-                          }
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                        </p>
+                      </div>
+                      <Badge variant="outline" className="text-lg font-semibold">
+                        ₹{receipt.total_amount.toFixed(2)}
+                      </Badge>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <p className="text-muted-foreground">Last Reading</p>
+                        <p className="font-medium">{receipt.eb_reading_last_month.toFixed(0)}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Current Reading</p>
+                        <p className="font-medium">{receipt.eb_reading_this_month.toFixed(0)}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Units Consumed</p>
+                        <p className="font-medium">{receipt.units_consumed.toFixed(0)}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">EB Charges</p>
+                        <p className="font-medium">₹{receipt.eb_charges.toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Rent Amount</p>
+                        <p className="font-medium">₹{receipt.rent_amount.toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Payment Status</p>
+                        {receipt.received_date ? (
+                          <p className="font-medium text-primary">
+                            {format(new Date(receipt.received_date), 'MMM dd, yyyy')}
+                          </p>
+                        ) : (
+                          <Badge variant="secondary">Pending</Badge>
+                        )}
+                      </div>
+                    </div>
+
+                    {!receipt.received_date && (
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        className="w-full"
+                        onClick={() => handleRecordPayment(receipt.id)}
+                      >
+                        Record Payment
+                      </Button>
+                    )}
+                  </div>
+                </Card>
+              ))
             )}
-          </Card>
+          </div>
         </div>
       </div>
     </div>
