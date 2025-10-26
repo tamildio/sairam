@@ -167,7 +167,7 @@ export const RentBillForm = ({ onGenerate }: RentBillFormProps) => {
   return (
     <Card className="p-6">
       <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="date">Receipt Date</Label>
             <div className="relative">
@@ -222,7 +222,7 @@ export const RentBillForm = ({ onGenerate }: RentBillFormProps) => {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="lastMonth">Last Month EB Reading</Label>
             <Input
