@@ -12,6 +12,7 @@ interface ReceiptData {
   rent_amount: number;
   total_amount: number;
   received_date?: string | null;
+  payment_mode?: string | null;
 }
 
 export const fetchReceipts = async (limit?: number, tenant_name?: string) => {
@@ -48,4 +49,17 @@ export const updateReceipt = async (id: string, updates: Partial<ReceiptData>) =
 
   if (error) throw error;
   return data.data;
+};
+
+export const deleteReceipt = async (id: string) => {
+  const session = getSession();
+  if (!session) throw new Error('Not authenticated');
+
+  const { data, error } = await supabase
+    .from('rent_receipts')
+    .delete()
+    .eq('id', id);
+
+  if (error) throw error;
+  return data;
 };

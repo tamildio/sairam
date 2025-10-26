@@ -3,7 +3,6 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Calendar } from "lucide-react";
 import { toast } from "sonner";
 import { createReceipt, fetchReceipts } from "@/lib/api";
@@ -118,7 +117,7 @@ export const RentBillForm = ({ onGenerate }: RentBillFormProps) => {
               value={formData.date}
               onChange={(e) => handleChange('date', e.target.value)}
               required
-              className="pl-10"
+              className="pl-10 w-auto"
             />
             <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
           </div>
@@ -126,20 +125,26 @@ export const RentBillForm = ({ onGenerate }: RentBillFormProps) => {
 
         <div className="space-y-3">
           <Label>Select Tenant</Label>
-          <RadioGroup value={formData.tenantName} onValueChange={handleTenantSelect} required>
+          <div className="grid gap-2">
             {TENANTS.map((tenant) => (
-              <Label
+              <div
                 key={tenant.name}
-                htmlFor={tenant.name}
-                className="flex items-center space-x-2 border rounded-lg p-3 hover:bg-secondary/50 transition-colors cursor-pointer"
+                onClick={() => handleTenantSelect(tenant.name)}
+                className={`flex items-center justify-between border rounded-lg p-4 hover:bg-secondary/50 transition-colors cursor-pointer ${
+                  formData.tenantName === tenant.name 
+                    ? 'border-primary bg-primary/5 ring-2 ring-primary/20' 
+                    : 'border-border'
+                }`}
               >
-                <RadioGroupItem value={tenant.name} id={tenant.name} />
-                <span className="flex-1 font-normal">
-                  {tenant.name} - ₹{tenant.rent}
+                <span className="font-medium text-lg">
+                  {tenant.name}
                 </span>
-              </Label>
+                <span className="text-lg font-semibold text-primary">
+                  ₹{tenant.rent}
+                </span>
+              </div>
             ))}
-          </RadioGroup>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4">

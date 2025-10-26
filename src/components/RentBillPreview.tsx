@@ -10,9 +10,11 @@ interface RentBillPreviewProps {
   receiptId?: string;
   onSave?: () => void;
   onDiscard?: () => void;
+  receivedDate?: string | null;
+  paymentMode?: string | null;
 }
 
-export const RentBillPreview = ({ data, receiptId, onSave, onDiscard }: RentBillPreviewProps) => {
+export const RentBillPreview = ({ data, receiptId, onSave, onDiscard, receivedDate, paymentMode }: RentBillPreviewProps) => {
   const billRef = useRef<HTMLDivElement>(null);
   const unitsConsumed = data.currentMonthReading - data.lastMonthReading;
   const ebCharges = unitsConsumed * data.ebRatePerUnit;
@@ -64,14 +66,24 @@ export const RentBillPreview = ({ data, receiptId, onSave, onDiscard }: RentBill
       <Card ref={billRef} className="p-6 md:p-8">
       <div className="space-y-6">
 
-        <div className="flex justify-between items-start">
-          <div>
-            <p className="text-invoice-label text-sm uppercase tracking-wide">Receipt Date</p>
-            <p className="text-lg font-semibold mt-1">{formatDate(data.date)}</p>
-          </div>
-        </div>
-
         <div className="bg-secondary/50 p-4 rounded-lg">
+          <div className="flex justify-between items-start mb-4">
+            <div>
+              <p className="text-invoice-label text-sm uppercase tracking-wide">Receipt Date</p>
+              <p className="text-lg font-semibold mt-1">{formatDate(data.date)}</p>
+            </div>
+            {receivedDate && receivedDate !== '1970-01-01' && (
+              <div className="text-right">
+                <p className="text-invoice-label text-sm uppercase tracking-wide">Paid Date</p>
+                <p className="text-lg font-semibold mt-1 text-green-600">{formatDate(receivedDate)}</p>
+                {paymentMode && (
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {paymentMode.replace('-', ' ').toUpperCase()}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
           <p className="text-invoice-label text-sm uppercase tracking-wide">Tenant Name</p>
           <p className="text-xl font-bold mt-1">{data.tenantName}</p>
         </div>

@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { RentBillForm, BillData } from "@/components/RentBillForm";
 import { RentBillPreview } from "@/components/RentBillPreview";
+import { PaymentModal } from "@/components/PaymentModal";
+import { ReceiptDetailModal } from "@/components/ReceiptDetailModal";
 import { FileText, ArrowLeft, LogOut, Receipt } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -9,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { clearSession } from "@/lib/auth";
 import { toast } from "sonner";
-import { fetchReceipts, updateReceipt } from "@/lib/api";
+import { fetchReceipts, updateReceipt, deleteReceipt } from "@/lib/api";
 import { format } from "date-fns";
 
 interface ReceiptRecord {
@@ -23,6 +25,7 @@ interface ReceiptRecord {
   rent_amount: number;
   total_amount: number;
   received_date: string;
+  payment_mode?: string | null;
   created_at: string;
 }
 
@@ -32,6 +35,24 @@ const Index = () => {
   const [showBill, setShowBill] = useState(false);
   const [receipts, setReceipts] = useState<ReceiptRecord[]>([]);
   const [loading, setLoading] = useState(false);
+  const [paymentModal, setPaymentModal] = useState<{
+    isOpen: boolean;
+    receiptId: string | null;
+    tenantName: string;
+    totalAmount: number;
+  }>({
+    isOpen: false,
+    receiptId: null,
+    tenantName: "",
+    totalAmount: 0,
+  });
+  const [receiptDetailModal, setReceiptDetailModal] = useState<{
+    isOpen: boolean;
+    receipt: ReceiptRecord | null;
+  }>({
+    isOpen: false,
+    receipt: null,
+  });
   const navigate = useNavigate();
 
   const handleGenerate = (data: BillData, id: string) => {
@@ -87,15 +108,61 @@ const Index = () => {
     }
   };
 
-  const handleRecordPayment = async (receiptId: string) => {
-    const paymentDate = format(new Date(), 'yyyy-MM-dd');
+  const handleRecordPayment = (receiptId: string, tenantName: string, totalAmount: number) => {
+    setPaymentModal({
+      isOpen: true,
+      receiptId,
+      tenantName,
+      totalAmount,
+    });
+  };
+
+  const handlePaymentConfirm = async (paymentDate: string, paymentMode: string) => {
+    if (!paymentModal.receiptId) return;
     
     try {
-      await updateReceipt(receiptId, { received_date: paymentDate });
-      toast.success("Payment date recorded successfully!");
+      await updateReceipt(paymentModal.receiptId, { 
+        received_date: paymentDate,
+        payment_mode: paymentMode 
+      });
+      toast.success(`Payment recorded successfully! Mode: ${paymentMode}`);
       loadReceipts();
     } catch (error) {
-      toast.error("Failed to record payment date");
+      toast.error("Failed to record payment");
+    }
+  };
+
+  const handlePaymentModalClose = () => {
+    setPaymentModal({
+      isOpen: false,
+      receiptId: null,
+      tenantName: "",
+      totalAmount: 0,
+    });
+  };
+
+  const handleReceiptClick = (receipt: ReceiptRecord) => {
+    setReceiptDetailModal({
+      isOpen: true,
+      receipt,
+    });
+  };
+
+  const handleReceiptDetailModalClose = () => {
+    setReceiptDetailModal({
+      isOpen: false,
+      receipt: null,
+    });
+  };
+
+
+  const handleDeleteReceipt = async (receiptId: string) => {
+    try {
+      await deleteReceipt(receiptId);
+      toast.success("Receipt deleted successfully!");
+      loadReceipts();
+    } catch (error) {
+      toast.error("Failed to delete receipt");
     }
   };
 
@@ -188,7 +255,11 @@ const Index = () => {
                 </Card>
               ) : (
                 receipts.map((receipt) => (
-                  <Card key={receipt.id} className="p-4 sm:p-6">
+                  <Card 
+                    key={receipt.id} 
+                    className="p-4 sm:p-6 cursor-pointer hover:shadow-md transition-shadow"
+                    onClick={() => handleReceiptClick(receipt)}
+                  >
                     <div className="space-y-4">
                       <div className="flex items-start justify-between gap-4">
                         <div>
@@ -240,7 +311,10 @@ const Index = () => {
                           variant="outline" 
                           size="sm"
                           className="w-full"
-                          onClick={() => handleRecordPayment(receipt.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRecordPayment(receipt.id, receipt.tenant_name, receipt.total_amount);
+                          }}
                         >
                           Record Payment
                         </Button>
@@ -253,6 +327,23 @@ const Index = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Payment Modal */}
+      <PaymentModal
+        isOpen={paymentModal.isOpen}
+        onClose={handlePaymentModalClose}
+        onConfirm={handlePaymentConfirm}
+        tenantName={paymentModal.tenantName}
+        totalAmount={paymentModal.totalAmount}
+      />
+
+      {/* Receipt Detail Modal */}
+      <ReceiptDetailModal
+        isOpen={receiptDetailModal.isOpen}
+        onClose={handleReceiptDetailModalClose}
+        receipt={receiptDetailModal.receipt}
+        onDelete={handleDeleteReceipt}
+      />
     </div>
   );
 };
