@@ -119,6 +119,11 @@ export const RentBillForm = ({ onGenerate }: RentBillFormProps) => {
       ...prev,
       [field]: field === 'tenantName' || field === 'date' ? value : (value === '' ? NaN : parseFloat(value))
     }));
+    
+    // If date changes, update the last month reading for the current tenant
+    if (field === 'date' && formData.tenantName) {
+      handleTenantSelect(formData.tenantName);
+    }
   };
 
   const handleTenantSelect = async (tenantName: string) => {
@@ -130,14 +135,18 @@ export const RentBillForm = ({ onGenerate }: RentBillFormProps) => {
         rentAmount: tenant.rent
       }));
 
-      // Fetch the most recent reading for this tenant
+      // Get the most recent reading for this tenant
       try {
-        const receipts = await fetchReceipts(1, tenant.name);
-
-        if (receipts.length > 0 && receipts[0].eb_reading_this_month) {
+        // Get all receipts for this tenant, ordered by date (newest first)
+        const receipts = await fetchReceipts(undefined, tenant.name);
+        
+        if (receipts.length > 0) {
+          // Get the most recent reading (first receipt since they're ordered by date)
+          const latestReceipt = receipts[0];
+          
           setFormData(prev => ({
             ...prev,
-            lastMonthReading: receipts[0].eb_reading_this_month,
+            lastMonthReading: latestReceipt.eb_reading_this_month,
           }));
         } else {
           setFormData(prev => ({
@@ -146,7 +155,11 @@ export const RentBillForm = ({ onGenerate }: RentBillFormProps) => {
           }));
         }
       } catch (error) {
-        // Silently fail - last month reading stays at 0
+        console.error('Error fetching latest reading:', error);
+        setFormData(prev => ({
+          ...prev,
+          lastMonthReading: NaN,
+        }));
       }
     }
   };

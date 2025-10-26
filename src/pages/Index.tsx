@@ -9,8 +9,11 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { fetchReceipts, updateReceipt, deleteReceipt } from "@/lib/api";
+import { fetchReceipts, updateReceipt, deleteReceipt, createReceipt } from "@/lib/api";
 import { format } from "date-fns";
 
 interface ReceiptRecord {
@@ -46,6 +49,20 @@ const Index = () => {
     totalAmount: 0,
   });
   const [selectedReceipt, setSelectedReceipt] = useState<ReceiptRecord | null>(null);
+  const [selectedEbBill, setSelectedEbBill] = useState<ReceiptRecord | null>(null);
+  const [ebPaymentModal, setEbPaymentModal] = useState<{
+    isOpen: boolean;
+    ebAmount: string;
+    unitsConsumed: string;
+    paymentDate: string;
+    unitsRecordedDate: string;
+  }>({
+    isOpen: false,
+    ebAmount: "",
+    unitsConsumed: "",
+    paymentDate: "",
+    unitsRecordedDate: "",
+  });
   const navigate = useNavigate();
 
   const handleGenerate = (data: BillData, id: string) => {
@@ -130,6 +147,14 @@ const Index = () => {
     setSelectedReceipt(null);
   };
 
+  const handleEbBillClick = (ebBill: ReceiptRecord) => {
+    setSelectedEbBill(ebBill);
+  };
+
+  const handleBackToEbBills = () => {
+    setSelectedEbBill(null);
+  };
+
 
   const handleDeleteReceipt = async (receiptId: string) => {
     try {
@@ -141,6 +166,75 @@ const Index = () => {
     }
   };
 
+  const handleEbPaymentClick = () => {
+    const today = new Date().toISOString().split('T')[0];
+    setEbPaymentModal({
+      isOpen: true,
+      ebAmount: "",
+      unitsConsumed: "",
+      paymentDate: today,
+      unitsRecordedDate: today,
+    });
+  };
+
+  const handleEbPaymentConfirm = async () => {
+    const ebAmount = parseFloat(ebPaymentModal.ebAmount);
+    const unitsConsumed = parseFloat(ebPaymentModal.unitsConsumed);
+
+    if (isNaN(ebAmount) || isNaN(unitsConsumed) || ebAmount <= 0 || unitsConsumed <= 0) {
+      toast.error("Please enter valid EB amount and units consumed");
+      return;
+    }
+
+    if (!ebPaymentModal.paymentDate || !ebPaymentModal.unitsRecordedDate) {
+      toast.error("Please select both payment date and units recorded date");
+      return;
+    }
+
+    try {
+      // Create a special receipt for EB bill payment
+      const ebReceipt = {
+        receipt_date: ebPaymentModal.unitsRecordedDate, // Use units recorded date
+        tenant_name: "EB bill paid",
+        eb_reading_last_month: 0,
+        eb_reading_this_month: unitsConsumed,
+        units_consumed: unitsConsumed,
+        eb_rate_per_unit: ebAmount / unitsConsumed, // Calculate rate per unit
+        eb_charges: ebAmount,
+        rent_amount: 0,
+        total_amount: ebAmount,
+        received_date: ebPaymentModal.paymentDate, // Use payment date
+        payment_mode: "manual",
+      };
+
+      await createReceipt(ebReceipt);
+      toast.success("EB bill payment recorded successfully!");
+      loadReceipts();
+      setEbPaymentModal({
+        isOpen: false,
+        ebAmount: "",
+        unitsConsumed: "",
+        paymentDate: "",
+        unitsRecordedDate: "",
+      });
+    } catch (error) {
+      toast.error("Failed to record EB bill payment");
+    }
+  };
+
+  const handleEbPaymentModalClose = () => {
+    setEbPaymentModal({
+      isOpen: false,
+      ebAmount: "",
+      unitsConsumed: "",
+      paymentDate: "",
+      unitsRecordedDate: "",
+    });
+  };
+
+
+
+
   useEffect(() => {
     loadReceipts();
   }, []);
@@ -151,9 +245,10 @@ const Index = () => {
       <div className="container max-w-[540px] mx-auto py-4 px-4">
 
         <Tabs defaultValue="generate" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-6">
+          <TabsList className="grid w-full grid-cols-3 mb-6">
             <TabsTrigger value="generate">Generate Bill</TabsTrigger>
             <TabsTrigger value="receipts">Receipts</TabsTrigger>
+            <TabsTrigger value="eb">EB</TabsTrigger>
           </TabsList>
 
           <TabsContent value="generate">
@@ -227,7 +322,7 @@ const Index = () => {
                       <div className="text-muted-foreground">Loading receipts...</div>
                     </div>
                   </Card>
-                ) : receipts.length === 0 ? (
+                ) : receipts.filter(receipt => receipt.tenant_name !== "EB bill paid").length === 0 ? (
                   <Card className="p-6">
                     <div className="text-center py-12">
                       <Receipt className="h-16 w-16 mx-auto mb-4 text-muted-foreground/40" />
@@ -237,8 +332,10 @@ const Index = () => {
                       </p>
                     </div>
                   </Card>
-                ) : (
-                  receipts.map((receipt) => (
+              ) : (
+                receipts
+                  .filter(receipt => receipt.tenant_name !== "EB bill paid")
+                  .map((receipt) => (
                     <Card 
                       key={receipt.id} 
                       className="p-4 sm:p-6 cursor-pointer hover:shadow-md transition-shadow"
@@ -310,6 +407,97 @@ const Index = () => {
               </div>
             )}
           </TabsContent>
+
+          <TabsContent value="eb">
+            {selectedEbBill ? (
+              <div className="space-y-4">
+                <div className="flex gap-2">
+                  <Button onClick={handleBackToEbBills} variant="outline" className="flex-1">
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Back to EB Bills
+                  </Button>
+                </div>
+                <ReceiptDetailView
+                  receipt={selectedEbBill}
+                  onBack={handleBackToEbBills}
+                  onDelete={handleDeleteReceipt}
+                />
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Record EB Payment Button */}
+                <div className="flex justify-center">
+                  <Button onClick={handleEbPaymentClick} className="flex items-center gap-2">
+                    <Receipt className="h-4 w-4" />
+                    Record EB Bill Payment
+                  </Button>
+                </div>
+
+                {loading ? (
+                <Card className="p-6">
+                  <div className="text-center py-8">
+                    <div className="text-muted-foreground">Loading EB data...</div>
+                  </div>
+                </Card>
+              ) : receipts.filter(receipt => receipt.tenant_name === "EB bill paid").length === 0 ? (
+                <Card className="p-6">
+                  <div className="text-center py-12">
+                    <Receipt className="h-16 w-16 mx-auto mb-4 text-muted-foreground/40" />
+                    <h3 className="text-lg font-semibold mb-2">No EB Bills Found</h3>
+                    <p className="text-muted-foreground mb-4">
+                      No EB bill payments recorded yet
+                    </p>
+                  </div>
+                </Card>
+              ) : (
+                <div className="space-y-4">
+                  {/* Filter EB bills only */}
+                  {receipts
+                    .filter(receipt => receipt.tenant_name === "EB bill paid")
+                    .sort((a, b) => new Date(b.receipt_date).getTime() - new Date(a.receipt_date).getTime())
+                    .map((receipt) => (
+                      <Card 
+                        key={receipt.id} 
+                        className="p-4 sm:p-6 cursor-pointer hover:shadow-md transition-shadow"
+                        onClick={() => handleEbBillClick(receipt)}
+                      >
+                        <div className="space-y-4">
+                          <div className="flex items-start justify-between gap-4">
+                            <div>
+                              <h3 className="font-semibold text-lg">{receipt.tenant_name}</h3>
+                              <p className="text-sm text-muted-foreground">
+                                Units Recorded: {format(new Date(receipt.receipt_date), 'MMM dd, yyyy')}
+                              </p>
+                            </div>
+                            <Badge variant="outline" className="text-lg font-semibold">
+                              ₹{receipt.total_amount.toFixed(2)}
+                            </Badge>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3 text-sm">
+                            <div>
+                              <p className="text-muted-foreground">Units Consumed</p>
+                              <p className="font-medium">{receipt.units_consumed.toFixed(0)}</p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">Paid date</p>
+                              {receipt.received_date && receipt.received_date !== '1970-01-01' ? (
+                                <p className="font-medium text-primary">
+                                  {format(new Date(receipt.received_date), 'MMM dd, yyyy')}
+                                </p>
+                              ) : (
+                                <Badge variant="secondary">Pending</Badge>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </Card>
+                    ))}
+                </div>
+              )}
+              </div>
+            )}
+          </TabsContent>
         </Tabs>
       </div>
 
@@ -321,6 +509,71 @@ const Index = () => {
         tenantName={paymentModal.tenantName}
         totalAmount={paymentModal.totalAmount}
       />
+
+      {/* EB Payment Modal */}
+      <Dialog open={ebPaymentModal.isOpen} onOpenChange={handleEbPaymentModalClose}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Record EB Bill Payment (Bi-monthly)</DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="unitsRecordedDate">Units Recorded Date</Label>
+              <Input
+                id="unitsRecordedDate"
+                type="date"
+                value={ebPaymentModal.unitsRecordedDate}
+                onChange={(e) => setEbPaymentModal(prev => ({ ...prev, unitsRecordedDate: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="paymentDate">Payment Date</Label>
+              <Input
+                id="paymentDate"
+                type="date"
+                value={ebPaymentModal.paymentDate}
+                onChange={(e) => setEbPaymentModal(prev => ({ ...prev, paymentDate: e.target.value }))}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="unitsConsumed">Units Consumed</Label>
+              <Input
+                id="unitsConsumed"
+                type="number"
+                step="0.01"
+                placeholder="Enter units consumed"
+                value={ebPaymentModal.unitsConsumed}
+                onChange={(e) => setEbPaymentModal(prev => ({ ...prev, unitsConsumed: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="ebAmount">EB Amount (₹)</Label>
+              <Input
+                id="ebAmount"
+                type="number"
+                step="0.01"
+                placeholder="Enter EB amount"
+                value={ebPaymentModal.ebAmount}
+                onChange={(e) => setEbPaymentModal(prev => ({ ...prev, ebAmount: e.target.value }))}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={handleEbPaymentModalClose}>
+              Cancel
+            </Button>
+            <Button onClick={handleEbPaymentConfirm}>
+              Record Payment
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
 
     </div>
   );
