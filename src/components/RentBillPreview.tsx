@@ -50,19 +50,15 @@ export const RentBillPreview = ({ data, receiptId, onSave, receivedDate, payment
 
   return (
     <div className="space-y-4">
-      {receiptId && onSave && (
-        <div className="flex gap-2 justify-center">
-          <Button onClick={handleSaveAndDownload} className="flex-1">
-            <Download className="mr-2 h-4 w-4" />
-            Save & Download
-          </Button>
-        </div>
-      )}
       <Card ref={billRef} className="p-6 md:p-8">
       <div className="space-y-6">
 
         <div className="bg-secondary/50 p-4 rounded-lg">
-          <div className="flex justify-between items-start mb-4">
+          <div className="mb-4">
+            <p className="text-invoice-label text-sm uppercase tracking-wide">Tenant Name</p>
+            <p className="text-xl font-bold mt-1">{data.tenantName}</p>
+          </div>
+          <div className="flex justify-between items-start">
             <div>
               <p className="text-invoice-label text-sm uppercase tracking-wide">Receipt Date</p>
               <p className="text-lg font-semibold mt-1">{formatDate(data.date)}</p>
@@ -79,8 +75,6 @@ export const RentBillPreview = ({ data, receiptId, onSave, receivedDate, payment
               </div>
             )}
           </div>
-          <p className="text-invoice-label text-sm uppercase tracking-wide">Tenant Name</p>
-          <p className="text-xl font-bold mt-1">{data.tenantName}</p>
         </div>
 
         <div className="border border-invoice-border rounded-lg overflow-hidden">
@@ -126,6 +120,15 @@ export const RentBillPreview = ({ data, receiptId, onSave, receivedDate, payment
         </div>
       </div>
     </Card>
+    
+    {receiptId && onSave && (
+      <div className="flex gap-2 justify-center">
+        <Button onClick={handleSaveAndDownload} className="flex-1">
+          <Download className="mr-2 h-4 w-4" />
+          Save & Download
+        </Button>
+      </div>
+    )}
     </div>
   );
 };

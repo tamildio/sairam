@@ -5,8 +5,9 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Receipt, LogOut } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { fetchReceipts, updateReceipt } from "@/lib/api";
+import { fetchReceipts, updateReceipt, deleteReceipt } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
+import { ReceiptDetailView } from "@/components/ReceiptDetailView";
 
 interface ReceiptRecord {
   id: string;
@@ -25,6 +26,7 @@ interface ReceiptRecord {
 const ReceiptHistory = () => {
   const [receipts, setReceipts] = useState<ReceiptRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedReceipt, setSelectedReceipt] = useState<ReceiptRecord | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -58,6 +60,39 @@ const ReceiptHistory = () => {
     // Logout functionality removed for development
     console.log("Logout clicked - no action needed in development mode");
   };
+
+  const handleDeleteReceipt = async (receiptId: string) => {
+    try {
+      await deleteReceipt(receiptId);
+      toast.success("Receipt deleted successfully!");
+      loadReceipts();
+    } catch (error) {
+      toast.error("Failed to delete receipt");
+    }
+  };
+
+  const handleReceiptClick = (receipt: ReceiptRecord) => {
+    setSelectedReceipt(receipt);
+  };
+
+  const handleBackToList = () => {
+    setSelectedReceipt(null);
+  };
+
+  // If a receipt is selected, show the detail view
+  if (selectedReceipt) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="container max-w-7xl mx-auto py-8 px-4">
+          <ReceiptDetailView
+            receipt={selectedReceipt}
+            onBack={handleBackToList}
+            onDelete={handleDeleteReceipt}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -104,7 +139,11 @@ const ReceiptHistory = () => {
               </Card>
             ) : (
               receipts.map((receipt) => (
-                <Card key={receipt.id} className="p-4 sm:p-6">
+                <Card 
+                  key={receipt.id} 
+                  className="p-4 sm:p-6 cursor-pointer hover:shadow-md transition-shadow"
+                  onClick={() => handleReceiptClick(receipt)}
+                >
                   <div className="space-y-4">
                     <div className="flex items-start justify-between gap-4">
                       <div>

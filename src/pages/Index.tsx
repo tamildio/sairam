@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { RentBillForm, BillData } from "@/components/RentBillForm";
 import { RentBillPreview } from "@/components/RentBillPreview";
 import { PaymentModal } from "@/components/PaymentModal";
-import { ReceiptDetailModal } from "@/components/ReceiptDetailModal";
+import { ReceiptDetailView } from "@/components/ReceiptDetailView";
 import { FileText, ArrowLeft, Receipt } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -45,13 +45,7 @@ const Index = () => {
     tenantName: "",
     totalAmount: 0,
   });
-  const [receiptDetailModal, setReceiptDetailModal] = useState<{
-    isOpen: boolean;
-    receipt: ReceiptRecord | null;
-  }>({
-    isOpen: false,
-    receipt: null,
-  });
+  const [selectedReceipt, setSelectedReceipt] = useState<ReceiptRecord | null>(null);
   const navigate = useNavigate();
 
   const handleGenerate = (data: BillData, id: string) => {
@@ -129,17 +123,11 @@ const Index = () => {
   };
 
   const handleReceiptClick = (receipt: ReceiptRecord) => {
-    setReceiptDetailModal({
-      isOpen: true,
-      receipt,
-    });
+    setSelectedReceipt(receipt);
   };
 
-  const handleReceiptDetailModalClose = () => {
-    setReceiptDetailModal({
-      isOpen: false,
-      receipt: null,
-    });
+  const handleBackToReceipts = () => {
+    setSelectedReceipt(null);
   };
 
 
@@ -156,6 +144,7 @@ const Index = () => {
   useEffect(() => {
     loadReceipts();
   }, []);
+
 
   return (
     <div className="min-h-screen bg-background">
@@ -216,94 +205,110 @@ const Index = () => {
           </TabsContent>
 
           <TabsContent value="receipts">
-            <div className="space-y-4">
-              {loading ? (
-                <Card className="p-6">
-                  <div className="text-center py-8">
-                    <div className="text-muted-foreground">Loading receipts...</div>
-                  </div>
-                </Card>
-              ) : receipts.length === 0 ? (
-                <Card className="p-6">
-                  <div className="text-center py-12">
-                    <Receipt className="h-16 w-16 mx-auto mb-4 text-muted-foreground/40" />
-                    <h3 className="text-lg font-semibold mb-2">No Receipts Found</h3>
-                    <p className="text-muted-foreground mb-4">
-                      You haven't generated any receipts yet
-                    </p>
-                  </div>
-                </Card>
-              ) : (
-                receipts.map((receipt) => (
-                  <Card 
-                    key={receipt.id} 
-                    className="p-4 sm:p-6 cursor-pointer hover:shadow-md transition-shadow"
-                    onClick={() => handleReceiptClick(receipt)}
-                  >
-                    <div className="space-y-4">
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <h3 className="font-semibold text-lg">{receipt.tenant_name}</h3>
-                          <p className="text-sm text-muted-foreground">
-                            {format(new Date(receipt.receipt_date), 'MMM dd, yyyy')}
-                          </p>
-                        </div>
-                        <Badge variant="outline" className="text-lg font-semibold">
-                          ₹{receipt.total_amount.toFixed(2)}
-                        </Badge>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3 text-sm">
-                        <div>
-                          <p className="text-muted-foreground">Last Reading</p>
-                          <p className="font-medium">{receipt.eb_reading_last_month.toFixed(0)}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Current Reading</p>
-                          <p className="font-medium">{receipt.eb_reading_this_month.toFixed(0)}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Units Consumed</p>
-                          <p className="font-medium">{receipt.units_consumed.toFixed(0)}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">EB Charges</p>
-                          <p className="font-medium">₹{receipt.eb_charges.toFixed(2)}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Rent Amount</p>
-                          <p className="font-medium">₹{receipt.rent_amount.toFixed(2)}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Payment Status</p>
-                          {receipt.received_date && receipt.received_date !== '1970-01-01' ? (
-                            <p className="font-medium text-primary">
-                              {format(new Date(receipt.received_date), 'MMM dd, yyyy')}
-                            </p>
-                          ) : (
-                            <Badge variant="secondary">Pending</Badge>
-                          )}
-                        </div>
-                      </div>
-
-                      {(!receipt.received_date || receipt.received_date === '1970-01-01') && (
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          className="w-full"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRecordPayment(receipt.id, receipt.tenant_name, receipt.total_amount);
-                          }}
-                        >
-                          Record Payment
-                        </Button>
-                      )}
+            {selectedReceipt ? (
+              <div className="space-y-4">
+                <div className="flex gap-2">
+                  <Button onClick={handleBackToReceipts} variant="outline" className="flex-1">
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Back to Receipts
+                  </Button>
+                </div>
+                <ReceiptDetailView
+                  receipt={selectedReceipt}
+                  onBack={handleBackToReceipts}
+                  onDelete={handleDeleteReceipt}
+                />
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {loading ? (
+                  <Card className="p-6">
+                    <div className="text-center py-8">
+                      <div className="text-muted-foreground">Loading receipts...</div>
                     </div>
                   </Card>
-                ))
-              )}
-            </div>
+                ) : receipts.length === 0 ? (
+                  <Card className="p-6">
+                    <div className="text-center py-12">
+                      <Receipt className="h-16 w-16 mx-auto mb-4 text-muted-foreground/40" />
+                      <h3 className="text-lg font-semibold mb-2">No Receipts Found</h3>
+                      <p className="text-muted-foreground mb-4">
+                        You haven't generated any receipts yet
+                      </p>
+                    </div>
+                  </Card>
+                ) : (
+                  receipts.map((receipt) => (
+                    <Card 
+                      key={receipt.id} 
+                      className="p-4 sm:p-6 cursor-pointer hover:shadow-md transition-shadow"
+                      onClick={() => handleReceiptClick(receipt)}
+                    >
+                      <div className="space-y-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <h3 className="font-semibold text-lg">{receipt.tenant_name}</h3>
+                            <p className="text-sm text-muted-foreground">
+                              {format(new Date(receipt.receipt_date), 'MMM dd, yyyy')}
+                            </p>
+                          </div>
+                          <Badge variant="outline" className="text-lg font-semibold">
+                            ₹{receipt.total_amount.toFixed(2)}
+                          </Badge>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                          <div>
+                            <p className="text-muted-foreground">Last Reading</p>
+                            <p className="font-medium">{receipt.eb_reading_last_month.toFixed(0)}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Current Reading</p>
+                            <p className="font-medium">{receipt.eb_reading_this_month.toFixed(0)}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Units Consumed</p>
+                            <p className="font-medium">{receipt.units_consumed.toFixed(0)}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">EB Charges</p>
+                            <p className="font-medium">₹{receipt.eb_charges.toFixed(2)}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Rent Amount</p>
+                            <p className="font-medium">₹{receipt.rent_amount.toFixed(2)}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Payment Status</p>
+                            {receipt.received_date && receipt.received_date !== '1970-01-01' ? (
+                              <p className="font-medium text-primary">
+                                {format(new Date(receipt.received_date), 'MMM dd, yyyy')}
+                              </p>
+                            ) : (
+                              <Badge variant="secondary">Pending</Badge>
+                            )}
+                          </div>
+                        </div>
+
+                        {(!receipt.received_date || receipt.received_date === '1970-01-01') && (
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            className="w-full"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRecordPayment(receipt.id, receipt.tenant_name, receipt.total_amount);
+                            }}
+                          >
+                            Record Payment
+                          </Button>
+                        )}
+                      </div>
+                    </Card>
+                  ))
+                )}
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </div>
@@ -317,13 +322,6 @@ const Index = () => {
         totalAmount={paymentModal.totalAmount}
       />
 
-      {/* Receipt Detail Modal */}
-      <ReceiptDetailModal
-        isOpen={receiptDetailModal.isOpen}
-        onClose={handleReceiptDetailModalClose}
-        receipt={receiptDetailModal.receipt}
-        onDelete={handleDeleteReceipt}
-      />
     </div>
   );
 };

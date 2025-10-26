@@ -1,78 +1,102 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+import { supabase, ReceiptData, ReceiptRecord } from './supabase';
 
-interface ReceiptData {
-  receipt_date: string;
-  tenant_name: string;
-  eb_reading_last_month: number;
-  eb_reading_this_month: number;
-  eb_rate_per_unit: number;
-  units_consumed: number;
-  eb_charges: number;
-  rent_amount: number;
-  total_amount: number;
-  received_date?: string | null;
-  payment_mode?: string | null;
-}
-
-// Helper function to make API calls
-const apiCall = async (endpoint: string, options: RequestInit = {}) => {
-  const url = `${API_BASE_URL}${endpoint}`;
-  console.log(`Making API call to: ${url}`, options);
-  
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-  });
-
-  console.log(`API response status: ${response.status}`);
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-    console.error('API error:', errorData);
-    throw new Error(errorData.error || `HTTP ${response.status}`);
-  }
-
-  const data = await response.json();
-  console.log('API response data:', data);
-  return data;
+// Helper function to handle Supabase errors
+const handleSupabaseError = (error: any, operation: string) => {
+  console.error(`Supabase ${operation} error:`, error);
+  throw new Error(error.message || `Failed to ${operation}`);
 };
 
 export const fetchReceipts = async (limit?: number, tenant_name?: string) => {
-  const params = new URLSearchParams();
-  if (limit) params.append('limit', limit.toString());
-  if (tenant_name) params.append('tenant_name', tenant_name);
-  
-  const queryString = params.toString();
-  const endpoint = `/api/receipts${queryString ? `?${queryString}` : ''}`;
-  
-  const data = await apiCall(endpoint);
-  return data.data;
+  try {
+    let query = supabase
+      .from('rent_receipts')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (tenant_name) {
+      query = query.eq('tenant_name', tenant_name);
+    }
+
+    if (limit) {
+      query = query.limit(limit);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      handleSupabaseError(error, 'fetch receipts');
+    }
+
+    console.log('Fetched receipts:', data);
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching receipts:', error);
+    throw error;
+  }
 };
 
 export const createReceipt = async (receipt: ReceiptData) => {
-  console.log("🌐 createReceipt called with:", receipt);
-  const data = await apiCall('/api/receipts', {
-    method: 'POST',
-    body: JSON.stringify(receipt),
-  });
-  console.log("🌐 createReceipt response:", data);
-  return data.data;
+  try {
+    console.log("🌐 createReceipt called with:", receipt);
+    
+    const { data, error } = await supabase
+      .from('rent_receipts')
+      .insert([receipt])
+      .select()
+      .single();
+
+    if (error) {
+      handleSupabaseError(error, 'create receipt');
+    }
+
+    console.log("🌐 createReceipt response:", data);
+    return data;
+  } catch (error) {
+    console.error('Error creating receipt:', error);
+    throw error;
+  }
 };
 
 export const updateReceipt = async (id: string, updates: Partial<ReceiptData>) => {
-  const data = await apiCall(`/api/receipts/${id}`, {
-    method: 'PUT',
-    body: JSON.stringify(updates),
-  });
-  return data.data;
+  try {
+    console.log("🌐 updateReceipt called with:", { id, updates });
+    
+    const { data, error } = await supabase
+      .from('rent_receipts')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      handleSupabaseError(error, 'update receipt');
+    }
+
+    console.log("🌐 updateReceipt response:", data);
+    return data;
+  } catch (error) {
+    console.error('Error updating receipt:', error);
+    throw error;
+  }
 };
 
 export const deleteReceipt = async (id: string) => {
-  const data = await apiCall(`/api/receipts/${id}`, {
-    method: 'DELETE',
-  });
-  return data.data;
+  try {
+    console.log("🌐 deleteReceipt called with:", { id });
+    
+    const { error } = await supabase
+      .from('rent_receipts')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      handleSupabaseError(error, 'delete receipt');
+    }
+
+    console.log("🌐 deleteReceipt successful");
+    return { success: true };
+  } catch (error) {
+    console.error('Error deleting receipt:', error);
+    throw error;
+  }
 };
