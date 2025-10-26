@@ -76,6 +76,14 @@ const ReceiptHistory = () => {
             <Button
               variant="outline"
               size="sm"
+              onClick={() => navigate('/')}
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Home
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={handleLogout}
             >
               <LogOut className="mr-2 h-4 w-4" />

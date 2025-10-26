@@ -15,7 +15,7 @@ const TENANTS = [
 ];
 
 interface RentBillFormProps {
-  onGenerate: (data: BillData) => void;
+  onGenerate: (data: BillData, receiptId: string) => void;
 }
 
 export interface BillData {
@@ -52,7 +52,7 @@ export const RentBillForm = ({ onGenerate }: RentBillFormProps) => {
       const ebCharges = unitsConsumed * formData.ebRatePerUnit;
       const totalAmount = formData.rentAmount + ebCharges;
 
-      await createReceipt({
+      const receipt = await createReceipt({
         receipt_date: formData.date,
         tenant_name: formData.tenantName,
         eb_reading_last_month: formData.lastMonthReading,
@@ -65,8 +65,8 @@ export const RentBillForm = ({ onGenerate }: RentBillFormProps) => {
         received_date: null,
       });
 
-      toast.success("Receipt saved successfully!");
-      onGenerate(formData);
+      toast.success("Receipt generated!");
+      onGenerate(formData, receipt.id);
     } catch (error) {
       toast.error("Failed to save receipt");
     } finally {
@@ -128,16 +128,16 @@ export const RentBillForm = ({ onGenerate }: RentBillFormProps) => {
           <Label>Select Tenant</Label>
           <RadioGroup value={formData.tenantName} onValueChange={handleTenantSelect} required>
             {TENANTS.map((tenant) => (
-              <div 
-                key={tenant.name} 
+              <Label
+                key={tenant.name}
+                htmlFor={tenant.name}
                 className="flex items-center space-x-2 border rounded-lg p-3 hover:bg-secondary/50 transition-colors cursor-pointer"
-                onClick={() => handleTenantSelect(tenant.name)}
               >
                 <RadioGroupItem value={tenant.name} id={tenant.name} />
-                <Label htmlFor={tenant.name} className="flex-1 cursor-pointer font-normal">
+                <span className="flex-1 font-normal">
                   {tenant.name} - ₹{tenant.rent}
-                </Label>
-              </div>
+                </span>
+              </Label>
             ))}
           </RadioGroup>
         </div>

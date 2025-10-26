@@ -1,11 +1,19 @@
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { BillData } from "./RentBillForm";
+import { Download, Trash2 } from "lucide-react";
+import html2canvas from "html2canvas";
+import { useRef } from "react";
 
 interface RentBillPreviewProps {
   data: BillData;
+  receiptId?: string;
+  onSave?: () => void;
+  onDiscard?: () => void;
 }
 
-export const RentBillPreview = ({ data }: RentBillPreviewProps) => {
+export const RentBillPreview = ({ data, receiptId, onSave, onDiscard }: RentBillPreviewProps) => {
+  const billRef = useRef<HTMLDivElement>(null);
   const unitsConsumed = data.currentMonthReading - data.lastMonthReading;
   const ebCharges = unitsConsumed * data.ebRatePerUnit;
   const totalAmount = data.rentAmount + ebCharges;
@@ -19,8 +27,41 @@ export const RentBillPreview = ({ data }: RentBillPreviewProps) => {
     });
   };
 
+  const handleSaveAndDownload = async () => {
+    if (!billRef.current) return;
+    
+    try {
+      const canvas = await html2canvas(billRef.current, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+      });
+      
+      const link = document.createElement('a');
+      link.download = `receipt-${data.tenantName}-${data.date}.png`;
+      link.href = canvas.toDataURL();
+      link.click();
+      
+      if (onSave) onSave();
+    } catch (error) {
+      console.error('Failed to capture screenshot:', error);
+    }
+  };
+
   return (
-    <Card className="p-6 md:p-8">
+    <div className="space-y-4">
+      {receiptId && onSave && onDiscard && (
+        <div className="flex gap-2">
+          <Button onClick={handleSaveAndDownload} className="flex-1">
+            <Download className="mr-2 h-4 w-4" />
+            Save & Download
+          </Button>
+          <Button onClick={onDiscard} variant="destructive" className="flex-1">
+            <Trash2 className="mr-2 h-4 w-4" />
+            Discard
+          </Button>
+        </div>
+      )}
+      <Card ref={billRef} className="p-6 md:p-8">
       <div className="space-y-6">
 
         <div className="flex justify-between items-start">
@@ -78,5 +119,6 @@ export const RentBillPreview = ({ data }: RentBillPreviewProps) => {
         </div>
       </div>
     </Card>
+    </div>
   );
 };

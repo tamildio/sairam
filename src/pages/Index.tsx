@@ -10,16 +10,42 @@ import { toast } from "sonner";
 
 const Index = () => {
   const [billData, setBillData] = useState<BillData | null>(null);
+  const [receiptId, setReceiptId] = useState<string | null>(null);
   const [showBill, setShowBill] = useState(false);
   const navigate = useNavigate();
 
-  const handleGenerate = (data: BillData) => {
+  const handleGenerate = (data: BillData, id: string) => {
     setBillData(data);
+    setReceiptId(id);
     setShowBill(true);
   };
 
   const handleBack = () => {
     setShowBill(false);
+    setBillData(null);
+    setReceiptId(null);
+  };
+
+  const handleSave = () => {
+    setShowBill(false);
+    setBillData(null);
+    setReceiptId(null);
+    toast.success("Receipt saved to history!");
+  };
+
+  const handleDiscard = async () => {
+    if (!receiptId) return;
+    
+    try {
+      const { updateReceipt } = await import("@/lib/api");
+      await updateReceipt(receiptId, { received_date: '1970-01-01' }); // Mark as discarded
+      setShowBill(false);
+      setBillData(null);
+      setReceiptId(null);
+      toast.success("Receipt discarded");
+    } catch (error) {
+      toast.error("Failed to discard receipt");
+    }
   };
 
   const handleLogout = () => {
@@ -51,7 +77,14 @@ const Index = () => {
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Back to Form
               </Button>
-              {billData && <RentBillPreview data={billData} />}
+              {billData && (
+                <RentBillPreview 
+                  data={billData} 
+                  receiptId={receiptId || undefined}
+                  onSave={handleSave}
+                  onDiscard={handleDiscard}
+                />
+              )}
             </div>
           )}
         </div>
@@ -59,12 +92,19 @@ const Index = () => {
         {/* Desktop: Show both side by side */}
         <div className="hidden md:grid md:grid-cols-2 gap-8">
           <div className="space-y-8">
-            <RentBillForm onGenerate={setBillData} />
+            <RentBillForm onGenerate={handleGenerate} />
             <RecentReceipts />
           </div>
 
           <div>
-            {billData ? <RentBillPreview data={billData} /> : <div className="h-full flex items-center justify-center">
+            {billData ? (
+              <RentBillPreview 
+                data={billData} 
+                receiptId={receiptId || undefined}
+                onSave={handleSave}
+                onDiscard={handleDiscard}
+              />
+            ) : <div className="h-full flex items-center justify-center">
                 <div className="text-center text-muted-foreground">
                   <FileText className="h-16 w-16 mx-auto mb-4 opacity-20" />
                   <p className="text-lg">Fill in the form to generate a receipt</p>
