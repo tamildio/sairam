@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { RentBillPreview } from "@/components/RentBillPreview";
 import { BillData } from "@/components/RentBillForm";
-import { Trash2 } from "lucide-react";
+import { Trash2, Receipt } from "lucide-react";
 
 interface ReceiptRecord {
   id: string;
@@ -25,12 +25,14 @@ interface ReceiptDetailViewProps {
   receipt: ReceiptRecord | null;
   onBack: () => void;
   onDelete: (receiptId: string) => void;
+  onRecordPayment?: (receiptId: string, tenantName: string, totalAmount: number) => void;
 }
 
 export const ReceiptDetailView = ({ 
   receipt, 
   onBack, 
-  onDelete 
+  onDelete,
+  onRecordPayment
 }: ReceiptDetailViewProps) => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
@@ -177,9 +179,17 @@ export const ReceiptDetailView = ({
         </div>
         
         <div className="bg-card rounded-lg border p-6 space-y-4">
-          <div className="text-center">
-            <p className="text-sm text-muted-foreground">Month</p>
-            <p className="text-xl font-semibold">{format(new Date(receipt.receipt_date), 'MMMM yyyy')}</p>
+          <div className="grid grid-cols-2 gap-4 text-center">
+            <div>
+              <p className="text-sm text-muted-foreground">Receipt Date</p>
+              <p className="text-lg font-semibold">{format(new Date(receipt.receipt_date), 'MMM dd, yyyy')}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Paid Date</p>
+              <p className="text-lg font-semibold">
+                {receipt.received_date ? format(new Date(receipt.received_date), 'MMM dd, yyyy') : 'Not paid'}
+              </p>
+            </div>
           </div>
           
           <div className="grid grid-cols-2 gap-4 text-center">
@@ -199,7 +209,22 @@ export const ReceiptDetailView = ({
           </div>
         </div>
         
-        <div className="flex justify-center">
+        <div className="flex justify-center gap-4">
+          {!receipt.received_date && (
+            <Button 
+              onClick={() => {
+                // This will be handled by the parent component
+                if (onRecordPayment) {
+                  onRecordPayment(receipt.id, receipt.tenant_name, receipt.total_amount);
+                }
+              }}
+              className="flex items-center gap-2"
+            >
+              <Receipt className="h-4 w-4" />
+              Record Payment
+            </Button>
+          )}
+          
           <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
             <AlertDialogTrigger asChild>
               <Button variant="destructive" className="flex items-center gap-2">

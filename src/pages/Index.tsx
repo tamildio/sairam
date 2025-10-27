@@ -312,6 +312,7 @@ const Index = () => {
                   receipt={selectedReceipt}
                   onBack={handleBackToReceipts}
                   onDelete={handleDeleteReceipt}
+                  onRecordPayment={handleRecordPayment}
                 />
               </div>
             ) : (
@@ -421,6 +422,7 @@ const Index = () => {
                   receipt={selectedEbBill}
                   onBack={handleBackToEbBills}
                   onDelete={handleDeleteReceipt}
+                  onRecordPayment={handleRecordPayment}
                 />
               </div>
             ) : (
