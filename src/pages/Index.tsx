@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { fetchReceipts, updateReceipt, deleteReceipt, createReceipt, createTenantEbUsedForAllMonths } from "@/lib/api";
+import { fetchReceipts, updateReceipt, deleteReceipt, createReceipt } from "@/lib/api";
 import { format } from "date-fns";
 
 interface ReceiptRecord {
@@ -430,30 +430,6 @@ const Index = () => {
                   <Button onClick={handleEbPaymentClick} className="flex items-center gap-2">
                     <Receipt className="h-4 w-4" />
                     Record EB Bill Payment
-                  </Button>
-                </div>
-
-                {/* Temporary button to create Tenant EB Used for existing months */}
-                <div className="flex justify-center">
-                  <Button 
-                    onClick={async () => {
-                      try {
-                        toast.info("Creating Tenant EB Used records for existing months...");
-                        const results = await createTenantEbUsedForAllMonths();
-                        toast.success(`Created ${results.length} Tenant EB Used records`);
-                        // Refresh the receipts
-                        const updatedReceipts = await fetchReceipts();
-                        setReceipts(updatedReceipts);
-                      } catch (error) {
-                        console.error('Error creating Tenant EB Used records:', error);
-                        toast.error("Failed to create Tenant EB Used records");
-                      }
-                    }}
-                    variant="outline"
-                    className="flex items-center gap-2"
-                  >
-                    <Receipt className="h-4 w-4" />
-                    Create Tenant EB Used for Existing Months
                   </Button>
                 </div>
 

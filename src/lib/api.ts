@@ -28,6 +28,16 @@ export const fetchReceipts = async (limit?: number, tenant_name?: string) => {
     }
 
     console.log('Fetched receipts:', data);
+
+    // Ensure all months with tenant receipts have Tenant EB Used records
+    try {
+      console.log("🌐 Ensuring Tenant EB Used records exist for all months");
+      await ensureTenantEbUsedRecords();
+    } catch (ensureError) {
+      console.error('❌ Error ensuring Tenant EB Used records:', ensureError);
+      // Don't throw error here - fetching receipts was successful, ensuring records is secondary
+    }
+
     return data || [];
   } catch (error) {
     console.error('Error fetching receipts:', error);
@@ -135,11 +145,11 @@ export const updateReceipt = async (id: string, updates: Partial<ReceiptData>) =
 export const deleteReceipt = async (id: string) => {
   try {
     console.log("🌐 deleteReceipt called with:", { id });
-    
+
     const { error } = await supabase
-      .from('rent_receipts')
-      .delete()
-      .eq('id', id);
+    .from('rent_receipts')
+    .delete()
+    .eq('id', id);
 
     if (error) {
       handleSupabaseError(error, 'delete receipt');
@@ -366,10 +376,10 @@ export const createOrUpdateTenantEbUsed = async (receiptDate: string) => {
   }
 };
 
-// Function to create Tenant EB Used records for all existing months
-export const createTenantEbUsedForAllMonths = async () => {
+// Function to ensure all months with tenant receipts have Tenant EB Used records
+export const ensureTenantEbUsedRecords = async () => {
   try {
-    console.log("🌐 createTenantEbUsedForAllMonths called");
+    console.log("🌐 ensureTenantEbUsedRecords called");
     
     // Get all unique months that have tenant receipts
     const { data: allReceipts, error: fetchError } = await supabase
@@ -380,11 +390,11 @@ export const createTenantEbUsedForAllMonths = async () => {
 
     if (fetchError) {
       console.error("❌ Error fetching receipts:", fetchError);
-      handleSupabaseError(fetchError, 'fetch receipts for all months');
+      handleSupabaseError(fetchError, 'fetch receipts for Tenant EB Used check');
     }
 
     if (!allReceipts || allReceipts.length === 0) {
-      console.log("ℹ️ No tenant receipts found");
+      console.log("ℹ️ No tenant receipts found for Tenant EB Used check");
       return [];
     }
 
@@ -402,26 +412,26 @@ export const createTenantEbUsedForAllMonths = async () => {
     console.log("🌐 Found months with tenant receipts:", Array.from(monthsMap.keys()));
 
     const results = [];
-    // Create Tenant EB Used for each month
+    // Check and create Tenant EB Used for each month
     for (const [monthKey, dates] of monthsMap) {
       const firstDate = dates[0]; // Use first date of the month
-      console.log(`🌐 Creating Tenant EB Used for ${monthKey} using date: ${firstDate}`);
+      console.log(`🌐 Checking Tenant EB Used for ${monthKey} using date: ${firstDate}`);
       
       try {
         const result = await createOrUpdateTenantEbUsed(firstDate);
         if (result) {
           results.push(result);
-          console.log(`✅ Created Tenant EB Used for ${monthKey}`);
+          console.log(`✅ Ensured Tenant EB Used exists for ${monthKey}`);
         }
       } catch (error) {
-        console.error(`❌ Error creating Tenant EB Used for ${monthKey}:`, error);
+        console.error(`❌ Error ensuring Tenant EB Used for ${monthKey}:`, error);
       }
     }
 
-    console.log("🌐 Created Tenant EB Used records for all months:", results);
+    console.log("🌐 Ensured Tenant EB Used records for all months:", results);
     return results;
   } catch (error) {
-    console.error('Error creating Tenant EB Used for all months:', error);
+    console.error('Error ensuring Tenant EB Used records:', error);
     throw error;
   }
 };
