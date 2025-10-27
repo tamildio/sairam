@@ -288,7 +288,9 @@ export const createOrUpdateTenantEbUsed = async (receiptDate: string) => {
     const { data: tenantReceipts, error: fetchError } = await supabase
       .from('rent_receipts')
       .select('*')
-      .not('tenant_name', 'in', ['EB bill paid', 'Tenant EB bill', 'Tenant EB Used']) // Exclude system records
+      .neq('tenant_name', 'EB bill paid')
+      .neq('tenant_name', 'Tenant EB bill')
+      .neq('tenant_name', 'Tenant EB Used')
       .gte('receipt_date', startDate)
       .lte('receipt_date', endDate);
 
