@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { RentBillPreview } from "@/components/RentBillPreview";
 import { BillData } from "@/components/RentBillForm";
 import { Trash2, Receipt } from "lucide-react";
+import { getReceiptsCountForMonth } from "@/lib/api";
 
 interface ReceiptRecord {
   id: string;
@@ -36,8 +37,21 @@ export const ReceiptDetailView = ({
   onRecordPayment
 }: ReceiptDetailViewProps) => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [receiptsCount, setReceiptsCount] = useState<number | null>(null);
 
   if (!receipt) return null;
+
+  // Calculate receipts count for Tenant EB Used records
+  useEffect(() => {
+    if (receipt.tenant_name === 'Tenant EB Used') {
+      getReceiptsCountForMonth(receipt.receipt_date)
+        .then(count => setReceiptsCount(count))
+        .catch(error => {
+          console.error('Error calculating receipts count:', error);
+          setReceiptsCount(0);
+        });
+    }
+  }, [receipt]);
 
   const handleDelete = () => {
     onDelete(receipt.id);
@@ -187,7 +201,9 @@ export const ReceiptDetailView = ({
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Receipts Count</p>
-              <p className="text-lg font-semibold">{receipt.receipts_count || 'N/A'}</p>
+              <p className="text-lg font-semibold">
+                {receiptsCount !== null ? receiptsCount : 'Calculating...'}
+              </p>
             </div>
           </div>
           

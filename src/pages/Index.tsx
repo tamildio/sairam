@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { fetchReceipts, updateReceipt, deleteReceipt, createReceipt } from "@/lib/api";
+import { fetchReceipts, updateReceipt, deleteReceipt, createReceipt, getReceiptsCountForMonth } from "@/lib/api";
 import { format } from "date-fns";
 
 interface ReceiptRecord {
@@ -38,6 +38,7 @@ const Index = () => {
   const [showBill, setShowBill] = useState(false);
   const [receipts, setReceipts] = useState<ReceiptRecord[]>([]);
   const [loading, setLoading] = useState(false);
+  const [receiptsCountMap, setReceiptsCountMap] = useState<Record<string, number>>({});
   const [paymentModal, setPaymentModal] = useState<{
     isOpen: boolean;
     receiptId: string | null;
@@ -240,6 +241,27 @@ const Index = () => {
     loadReceipts();
   }, []);
 
+  // Calculate receipts count for Tenant EB Used records
+  useEffect(() => {
+    const tenantEbUsedReceipts = receipts.filter(receipt => receipt.tenant_name === 'Tenant EB Used');
+    
+    tenantEbUsedReceipts.forEach(async (receipt) => {
+      try {
+        const count = await getReceiptsCountForMonth(receipt.receipt_date);
+        setReceiptsCountMap(prev => ({
+          ...prev,
+          [receipt.id]: count
+        }));
+      } catch (error) {
+        console.error('Error calculating receipts count for', receipt.id, error);
+        setReceiptsCountMap(prev => ({
+          ...prev,
+          [receipt.id]: 0
+        }));
+      }
+    });
+  }, [receipts]);
+
 
   return (
     <div className="min-h-screen bg-background">
@@ -324,7 +346,7 @@ const Index = () => {
                       <div className="text-muted-foreground">Loading receipts...</div>
                     </div>
                   </Card>
-                ) : receipts.filter(receipt => receipt.tenant_name !== "EB bill paid").length === 0 ? (
+                ) : receipts.filter(receipt => receipt.tenant_name !== "EB bill paid" && receipt.tenant_name !== "Tenant EB Used").length === 0 ? (
                   <Card className="p-6">
                     <div className="text-center py-12">
                       <Receipt className="h-16 w-16 mx-auto mb-4 text-muted-foreground/40" />
@@ -336,7 +358,7 @@ const Index = () => {
                   </Card>
               ) : (
                 receipts
-                  .filter(receipt => receipt.tenant_name !== "EB bill paid")
+                  .filter(receipt => receipt.tenant_name !== "EB bill paid" && receipt.tenant_name !== "Tenant EB Used")
                   .map((receipt) => (
                     <Card 
                       key={receipt.id} 
@@ -455,22 +477,35 @@ const Index = () => {
                             </Badge>
                           </div>
 
-                          <div className="grid grid-cols-2 gap-3 text-sm">
-                            <div>
-                              <p className="text-muted-foreground">Units Consumed</p>
-                              <p className="font-medium">{receipt.units_consumed.toFixed(0)}</p>
+                          {receipt.tenant_name === "Tenant EB Used" ? (
+                            <div className="grid grid-cols-2 gap-3 text-sm">
+                              <div>
+                                <p className="text-muted-foreground">Units Consumed</p>
+                                <p className="font-medium">{receipt.units_consumed.toFixed(0)}</p>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground">Receipts Count</p>
+                                <p className="font-medium">{receiptsCountMap[receipt.id] ?? 'Calculating...'}</p>
+                              </div>
                             </div>
-                            <div>
-                              <p className="text-muted-foreground">Paid date</p>
-                              {receipt.received_date && receipt.received_date !== '1970-01-01' ? (
-                                <p className="font-medium text-primary">
-                                  {format(new Date(receipt.received_date), 'MMM dd, yyyy')}
-                                </p>
-                              ) : (
-                                <Badge variant="secondary">Pending</Badge>
-                              )}
+                          ) : (
+                            <div className="grid grid-cols-2 gap-3 text-sm">
+                              <div>
+                                <p className="text-muted-foreground">Units Consumed</p>
+                                <p className="font-medium">{receipt.units_consumed.toFixed(0)}</p>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground">Paid date</p>
+                                {receipt.received_date && receipt.received_date !== '1970-01-01' ? (
+                                  <p className="font-medium text-primary">
+                                    {format(new Date(receipt.received_date), 'MMM dd, yyyy')}
+                                  </p>
+                                ) : (
+                                  <Badge variant="secondary">Pending</Badge>
+                                )}
+                              </div>
                             </div>
-                          </div>
+                          )}
                         </div>
                       </Card>
                     ))}

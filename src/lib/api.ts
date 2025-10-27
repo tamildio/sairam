@@ -440,3 +440,33 @@ export const ensureTenantEbUsedRecords = async () => {
     throw error;
   }
 };
+
+// Function to get receipts count for a specific month
+export const getReceiptsCountForMonth = async (receiptDate: string) => {
+  try {
+    const date = new Date(receiptDate);
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1;
+    const startDate = `${year}-${month.toString().padStart(2, '0')}-01`;
+    const endDate = `${year}-${month.toString().padStart(2, '0')}-31`;
+    
+    const { data: tenantReceipts, error } = await supabase
+      .from('rent_receipts')
+      .select('id')
+      .neq('tenant_name', 'EB bill paid')
+      .neq('tenant_name', 'Tenant EB bill')
+      .neq('tenant_name', 'Tenant EB Used')
+      .gte('receipt_date', startDate)
+      .lte('receipt_date', endDate);
+
+    if (error) {
+      console.error('Error fetching receipts count:', error);
+      return 0;
+    }
+
+    return tenantReceipts?.length || 0;
+  } catch (error) {
+    console.error('Error in getReceiptsCountForMonth:', error);
+    return 0;
+  }
+};
