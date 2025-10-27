@@ -385,7 +385,9 @@ export const ensureTenantEbUsedRecords = async () => {
     const { data: allReceipts, error: fetchError } = await supabase
       .from('rent_receipts')
       .select('receipt_date')
-      .not('tenant_name', 'in', ['EB bill paid', 'Tenant EB bill', 'Tenant EB Used'])
+      .neq('tenant_name', 'EB bill paid')
+      .neq('tenant_name', 'Tenant EB bill')
+      .neq('tenant_name', 'Tenant EB Used')
       .order('receipt_date', { ascending: true });
 
     if (fetchError) {
