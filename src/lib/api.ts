@@ -365,3 +365,63 @@ export const createOrUpdateTenantEbUsed = async (receiptDate: string) => {
     throw error;
   }
 };
+
+// Function to create Tenant EB Used records for all existing months
+export const createTenantEbUsedForAllMonths = async () => {
+  try {
+    console.log("🌐 createTenantEbUsedForAllMonths called");
+    
+    // Get all unique months that have tenant receipts
+    const { data: allReceipts, error: fetchError } = await supabase
+      .from('rent_receipts')
+      .select('receipt_date')
+      .not('tenant_name', 'in', ['EB bill paid', 'Tenant EB bill', 'Tenant EB Used'])
+      .order('receipt_date', { ascending: true });
+
+    if (fetchError) {
+      console.error("❌ Error fetching receipts:", fetchError);
+      handleSupabaseError(fetchError, 'fetch receipts for all months');
+    }
+
+    if (!allReceipts || allReceipts.length === 0) {
+      console.log("ℹ️ No tenant receipts found");
+      return [];
+    }
+
+    // Group receipts by month
+    const monthsMap = new Map<string, string[]>();
+    allReceipts.forEach(receipt => {
+      const date = new Date(receipt.receipt_date);
+      const monthKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
+      if (!monthsMap.has(monthKey)) {
+        monthsMap.set(monthKey, []);
+      }
+      monthsMap.get(monthKey)!.push(receipt.receipt_date);
+    });
+
+    console.log("🌐 Found months with tenant receipts:", Array.from(monthsMap.keys()));
+
+    const results = [];
+    // Create Tenant EB Used for each month
+    for (const [monthKey, dates] of monthsMap) {
+      const firstDate = dates[0]; // Use first date of the month
+      console.log(`🌐 Creating Tenant EB Used for ${monthKey} using date: ${firstDate}`);
+      
+      try {
+        const result = await createOrUpdateTenantEbUsed(firstDate);
+        if (result) {
+          results.push(result);
+          console.log(`✅ Created Tenant EB Used for ${monthKey}`);
+        }
+      } catch (error) {
+        console.error(`❌ Error creating Tenant EB Used for ${monthKey}:`, error);
+      }
+    }
+
+    console.log("🌐 Created Tenant EB Used records for all months:", results);
+    return results;
+  } catch (error) {
+    console.error('Error creating Tenant EB Used for all months:', error);
+    throw error;
+  }
+};
