@@ -28,6 +28,7 @@ interface ReceiptRecord {
   total_amount: number;
   received_date: string;
   payment_mode?: string | null;
+  receipts_count?: number; // Count of receipts used for aggregation
   created_at: string;
 }
 

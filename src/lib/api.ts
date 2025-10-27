@@ -338,6 +338,7 @@ export const createOrUpdateTenantEbUsed = async (receiptDate: string) => {
       total_amount: totalEbCharges,
       received_date: null,
       payment_mode: "aggregated",
+      receipts_count: tenantReceipts.length, // Add count of receipts used
     };
 
     let result;

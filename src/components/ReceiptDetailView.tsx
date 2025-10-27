@@ -18,6 +18,7 @@ interface ReceiptRecord {
   total_amount: number;
   received_date: string;
   payment_mode?: string | null;
+  receipts_count?: number; // Count of receipts used for aggregation
   created_at: string;
 }
 
@@ -185,10 +186,8 @@ export const ReceiptDetailView = ({
               <p className="text-lg font-semibold">{format(new Date(receipt.receipt_date), 'MMM dd, yyyy')}</p>
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Paid Date</p>
-              <p className="text-lg font-semibold">
-                {receipt.received_date ? format(new Date(receipt.received_date), 'MMM dd, yyyy') : 'Not paid'}
-              </p>
+              <p className="text-sm text-muted-foreground">Receipts Count</p>
+              <p className="text-lg font-semibold">{receipt.receipts_count || 'N/A'}</p>
             </div>
           </div>
           
