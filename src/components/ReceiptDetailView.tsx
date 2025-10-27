@@ -63,6 +63,12 @@ export const ReceiptDetailView = ({
   const isEbBillPaid = receipt.tenant_name === 'EB bill paid';
   const isTenantEbBill = receipt.tenant_name === 'Tenant EB bill';
   const isTenantEbUsed = receipt.tenant_name === 'Tenant EB Used';
+  
+  // Debug logging
+  console.log('ReceiptDetailView - receipt:', receipt);
+  console.log('ReceiptDetailView - isEbBillPaid:', isEbBillPaid);
+  console.log('ReceiptDetailView - isTenantEbBill:', isTenantEbBill);
+  console.log('ReceiptDetailView - isTenantEbUsed:', isTenantEbUsed);
 
   if (isEbBillPaid) {
     // EB bill paid record - consistent card layout
@@ -300,13 +306,28 @@ export const ReceiptDetailView = ({
   }
 
   // Regular tenant receipt - show full preview
+  // Only show this for actual tenant receipts, not EB records
+  if (isEbBillPaid || isTenantEbBill || isTenantEbUsed) {
+    console.error('EB record reached regular receipt section - this should not happen');
+    return (
+      <div className="space-y-4">
+        <Card className="p-6">
+          <div className="text-center">
+            <h2 className="text-xl font-bold text-red-600 mb-2">Error</h2>
+            <p className="text-muted-foreground">This record type is not supported in the regular receipt view.</p>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   const billData: BillData = {
     date: receipt.receipt_date,
     tenantName: receipt.tenant_name,
     lastMonthReading: receipt.eb_reading_last_month,
     currentMonthReading: receipt.eb_reading_this_month,
     rentAmount: receipt.rent_amount,
-    ebRatePerUnit: receipt.eb_charges / receipt.units_consumed,
+    ebRatePerUnit: receipt.units_consumed > 0 ? receipt.eb_charges / receipt.units_consumed : 0,
   };
 
   return (
