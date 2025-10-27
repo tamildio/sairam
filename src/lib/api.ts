@@ -281,7 +281,9 @@ export const createOrUpdateTenantEbUsed = async (receiptDate: string) => {
     
     // Get all tenant receipts for the same month (excluding system records)
     const startDate = `${year}-${month.toString().padStart(2, '0')}-01`;
-    const endDate = `${year}-${month.toString().padStart(2, '0')}-31`;
+    // Get the last day of the month properly
+    const lastDay = new Date(year, month, 0).getDate();
+    const endDate = `${year}-${month.toString().padStart(2, '0')}-${lastDay.toString().padStart(2, '0')}`;
     
     console.log("🌐 Looking for tenant receipts for EB Used between:", startDate, "and", endDate);
     
@@ -338,7 +340,7 @@ export const createOrUpdateTenantEbUsed = async (receiptDate: string) => {
       total_amount: totalEbCharges,
       received_date: null,
       payment_mode: "aggregated",
-      receipts_count: tenantReceipts.length, // Add count of receipts used
+      // receipts_count: tenantReceipts.length, // TODO: Add this field to database schema
     };
 
     let result;
@@ -448,7 +450,9 @@ export const getReceiptsCountForMonth = async (receiptDate: string) => {
     const year = date.getFullYear();
     const month = date.getMonth() + 1;
     const startDate = `${year}-${month.toString().padStart(2, '0')}-01`;
-    const endDate = `${year}-${month.toString().padStart(2, '0')}-31`;
+    // Get the last day of the month properly
+    const lastDay = new Date(year, month, 0).getDate();
+    const endDate = `${year}-${month.toString().padStart(2, '0')}-${lastDay.toString().padStart(2, '0')}`;
     
     const { data: tenantReceipts, error } = await supabase
       .from('rent_receipts')
