@@ -316,16 +316,37 @@ export const createOrUpdateTenantEbUsed = async (receiptDate: string) => {
     const averageRatePerUnit = totalUnitsConsumed > 0 ? totalEbCharges / totalUnitsConsumed : 0;
 
     // Check if Tenant EB Used already exists for this month
-    const { data: existingTenantEbUsed, error: checkError } = await supabase
+    const { data: existingTenantEbUsedRecords, error: checkError } = await supabase
       .from('rent_receipts')
       .select('*')
       .eq('tenant_name', 'Tenant EB Used')
       .gte('receipt_date', startDate)
-      .lte('receipt_date', endDate)
-      .single();
+      .lte('receipt_date', endDate);
 
-    if (checkError && checkError.code !== 'PGRST116') { // PGRST116 = no rows returned
+    if (checkError) {
       handleSupabaseError(checkError, 'check existing tenant EB Used');
+    }
+
+    // Get the first existing record (if any)
+    const existingTenantEbUsed = existingTenantEbUsedRecords && existingTenantEbUsedRecords.length > 0 
+      ? existingTenantEbUsedRecords[0] 
+      : null;
+
+    // If there are multiple records, delete duplicates and keep only the first one
+    if (existingTenantEbUsedRecords && existingTenantEbUsedRecords.length > 1) {
+      console.log(`🌐 Found ${existingTenantEbUsedRecords.length} duplicate Tenant EB Used records, cleaning up...`);
+      const recordsToDelete = existingTenantEbUsedRecords.slice(1); // Keep first, delete rest
+      for (const duplicate of recordsToDelete) {
+        const { error: deleteError } = await supabase
+          .from('rent_receipts')
+          .delete()
+          .eq('id', duplicate.id);
+        if (deleteError) {
+          console.error('❌ Error deleting duplicate Tenant EB Used record:', deleteError);
+        } else {
+          console.log(`✅ Deleted duplicate Tenant EB Used record: ${duplicate.id}`);
+        }
+      }
     }
 
     const tenantEbUsedData = {
