@@ -45,6 +45,7 @@ export const ReceiptDetailView = ({
   // Check if this is an EB bill paid record
   const isEbBillPaid = receipt.tenant_name === 'EB bill paid';
   const isTenantEbBill = receipt.tenant_name === 'Tenant EB bill';
+  const isTenantEbUsed = receipt.tenant_name === 'Tenant EB Used';
 
   if (isEbBillPaid) {
     // Simple view for EB bill paid records
@@ -150,6 +151,67 @@ export const ReceiptDetailView = ({
                 <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                 <AlertDialogDescription>
                   This action cannot be undone. This will permanently delete the Tenant EB bill record for{" "}
+                  <strong>{format(new Date(receipt.receipt_date), 'MMMM yyyy')}</strong>.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                  Delete Record
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      </div>
+    );
+  }
+
+  if (isTenantEbUsed) {
+    // Simple view for Tenant EB Used records
+    return (
+      <div className="space-y-6">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-primary mb-2">Tenant EB Usage Summary</h2>
+          <p className="text-muted-foreground">Monthly aggregated EB usage from all tenants</p>
+        </div>
+        
+        <div className="bg-card rounded-lg border p-6 space-y-4">
+          <div className="text-center">
+            <p className="text-sm text-muted-foreground">Month</p>
+            <p className="text-xl font-semibold">{format(new Date(receipt.receipt_date), 'MMMM yyyy')}</p>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4 text-center">
+            <div>
+              <p className="text-sm text-muted-foreground">Total Units Used</p>
+              <p className="text-2xl font-bold">{receipt.units_consumed.toFixed(0)}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Total EB Charges</p>
+              <p className="text-2xl font-bold text-primary">₹{receipt.eb_charges.toFixed(2)}</p>
+            </div>
+          </div>
+          
+          <div className="text-center pt-4 border-t">
+            <p className="text-sm text-muted-foreground">Average Rate per Unit</p>
+            <p className="text-lg font-semibold">₹{receipt.eb_rate_per_unit.toFixed(2)}</p>
+          </div>
+        </div>
+        
+        <div className="flex justify-center">
+          <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" className="flex items-center gap-2">
+                <Trash2 className="h-4 w-4" />
+                Delete Record
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This action cannot be undone. This will permanently delete the Tenant EB Used record for{" "}
                   <strong>{format(new Date(receipt.receipt_date), 'MMMM yyyy')}</strong>.
                 </AlertDialogDescription>
               </AlertDialogHeader>

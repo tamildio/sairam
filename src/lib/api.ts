@@ -69,6 +69,20 @@ export const createReceipt = async (receipt: ReceiptData) => {
       // Don't throw error here - receipt creation was successful, aggregation is secondary
     }
 
+    // Automatically create/update Tenant EB Used for ALL tenant receipts
+    try {
+      console.log("🌐 Auto-creating/updating Tenant EB Used for receipt date:", receipt.receipt_date);
+      const tenantEbUsed = await createOrUpdateTenantEbUsed(receipt.receipt_date);
+      if (tenantEbUsed) {
+        console.log("✅ Tenant EB Used created/updated successfully:", tenantEbUsed);
+      } else {
+        console.log("ℹ️ No tenant receipts found for EB Used aggregation");
+      }
+    } catch (aggregationError) {
+      console.error('❌ Error auto-creating Tenant EB Used:', aggregationError);
+      // Don't throw error here - receipt creation was successful, aggregation is secondary
+    }
+
     return data;
   } catch (error) {
     console.error('Error creating receipt:', error);
@@ -99,6 +113,15 @@ export const updateReceipt = async (id: string, updates: Partial<ReceiptData>) =
       await createOrUpdateTenantEbBill(data.receipt_date);
     } catch (aggregationError) {
       console.error('Error auto-updating Tenant EB bill:', aggregationError);
+      // Don't throw error here - receipt update was successful, aggregation is secondary
+    }
+
+    // Automatically update Tenant EB Used for ALL tenant receipt updates
+    try {
+      console.log("🌐 Auto-updating Tenant EB Used for updated receipt date:", data.receipt_date);
+      await createOrUpdateTenantEbUsed(data.receipt_date);
+    } catch (aggregationError) {
+      console.error('Error auto-updating Tenant EB Used:', aggregationError);
       // Don't throw error here - receipt update was successful, aggregation is secondary
     }
 
@@ -232,6 +255,113 @@ export const createOrUpdateTenantEbBill = async (receiptDate: string) => {
     return result;
   } catch (error) {
     console.error('Error creating/updating tenant EB bill:', error);
+    throw error;
+  }
+};
+
+// New function to create/update "Tenant EB Used" records
+export const createOrUpdateTenantEbUsed = async (receiptDate: string) => {
+  try {
+    console.log("🌐 createOrUpdateTenantEbUsed called with:", { receiptDate });
+    
+    // Extract year and month from the receipt date
+    const date = new Date(receiptDate);
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1;
+    
+    // Get all tenant receipts for the same month (excluding system records)
+    const startDate = `${year}-${month.toString().padStart(2, '0')}-01`;
+    const endDate = `${year}-${month.toString().padStart(2, '0')}-31`;
+    
+    console.log("🌐 Looking for tenant receipts for EB Used between:", startDate, "and", endDate);
+    
+    const { data: tenantReceipts, error: fetchError } = await supabase
+      .from('rent_receipts')
+      .select('*')
+      .not('tenant_name', 'in', ['EB bill paid', 'Tenant EB bill', 'Tenant EB Used']) // Exclude system records
+      .gte('receipt_date', startDate)
+      .lte('receipt_date', endDate);
+
+    console.log("🌐 Found tenant receipts for EB Used:", tenantReceipts);
+
+    if (fetchError) {
+      console.error("❌ Error fetching tenant receipts:", fetchError);
+      handleSupabaseError(fetchError, 'fetch tenant receipts for EB Used aggregation');
+    }
+
+    if (!tenantReceipts || tenantReceipts.length === 0) {
+      console.log("ℹ️ No tenant receipts found for EB Used aggregation in", startDate, "to", endDate);
+      return null;
+    }
+
+    console.log("✅ Found", tenantReceipts.length, "tenant receipts for EB Used aggregation");
+
+    // Aggregate the data
+    const totalUnitsConsumed = tenantReceipts.reduce((sum, receipt) => sum + receipt.units_consumed, 0);
+    const totalEbCharges = tenantReceipts.reduce((sum, receipt) => sum + receipt.eb_charges, 0);
+    const averageRatePerUnit = totalUnitsConsumed > 0 ? totalEbCharges / totalUnitsConsumed : 0;
+
+    // Check if Tenant EB Used already exists for this month
+    const { data: existingTenantEbUsed, error: checkError } = await supabase
+      .from('rent_receipts')
+      .select('*')
+      .eq('tenant_name', 'Tenant EB Used')
+      .gte('receipt_date', startDate)
+      .lte('receipt_date', endDate)
+      .single();
+
+    if (checkError && checkError.code !== 'PGRST116') { // PGRST116 = no rows returned
+      handleSupabaseError(checkError, 'check existing tenant EB Used');
+    }
+
+    const tenantEbUsedData = {
+      receipt_date: `${year}-${month.toString().padStart(2, '0')}-01`, // First day of the month
+      tenant_name: "Tenant EB Used",
+      eb_reading_last_month: 0,
+      eb_reading_this_month: totalUnitsConsumed,
+      eb_rate_per_unit: averageRatePerUnit,
+      units_consumed: totalUnitsConsumed,
+      eb_charges: totalEbCharges,
+      rent_amount: 0,
+      total_amount: totalEbCharges,
+      received_date: null,
+      payment_mode: "aggregated",
+    };
+
+    let result;
+    if (existingTenantEbUsed) {
+      // Update existing Tenant EB Used
+      console.log("🌐 Updating existing Tenant EB Used:", existingTenantEbUsed.id);
+      const { data, error } = await supabase
+        .from('rent_receipts')
+        .update(tenantEbUsedData)
+        .eq('id', existingTenantEbUsed.id)
+        .select()
+        .single();
+
+      if (error) {
+        handleSupabaseError(error, 'update tenant EB Used');
+      }
+      result = data;
+    } else {
+      // Create new Tenant EB Used
+      console.log("🌐 Creating new Tenant EB Used for", startDate, "to", endDate);
+      const { data, error } = await supabase
+        .from('rent_receipts')
+        .insert([tenantEbUsedData])
+        .select()
+        .single();
+
+      if (error) {
+        handleSupabaseError(error, 'create tenant EB Used');
+      }
+      result = data;
+    }
+
+    console.log("🌐 Tenant EB Used processed successfully:", result);
+    return result;
+  } catch (error) {
+    console.error('Error creating/updating tenant EB Used:', error);
     throw error;
   }
 };

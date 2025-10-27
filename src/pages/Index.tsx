@@ -439,21 +439,21 @@ const Index = () => {
                     <div className="text-muted-foreground">Loading EB data...</div>
                   </div>
                 </Card>
-              ) : receipts.filter(receipt => receipt.tenant_name === "EB bill paid").length === 0 ? (
+              ) : receipts.filter(receipt => receipt.tenant_name === "EB bill paid" || receipt.tenant_name === "Tenant EB Used").length === 0 ? (
                 <Card className="p-6">
                   <div className="text-center py-12">
                     <Receipt className="h-16 w-16 mx-auto mb-4 text-muted-foreground/40" />
-                    <h3 className="text-lg font-semibold mb-2">No EB Bills Found</h3>
+                    <h3 className="text-lg font-semibold mb-2">No EB Records Found</h3>
                     <p className="text-muted-foreground mb-4">
-                      No EB bill payments recorded yet
+                      No EB bill payments or usage records yet
                     </p>
                   </div>
                 </Card>
               ) : (
                 <div className="space-y-4">
-                  {/* Filter EB bills only */}
+                  {/* Filter EB bills and Tenant EB Used records */}
                   {receipts
-                    .filter(receipt => receipt.tenant_name === "EB bill paid")
+                    .filter(receipt => receipt.tenant_name === "EB bill paid" || receipt.tenant_name === "Tenant EB Used")
                     .sort((a, b) => new Date(b.receipt_date).getTime() - new Date(a.receipt_date).getTime())
                     .map((receipt) => (
                       <Card 
