@@ -271,7 +271,21 @@ export const ReceiptDetailView = ({
         paymentMode={receipt.payment_mode}
       />
       
-      <div className="flex justify-center">
+      <div className="flex justify-center gap-4">
+        {(!receipt.received_date || receipt.received_date === '1970-01-01') && (
+          <Button 
+            onClick={() => {
+              if (onRecordPayment) {
+                onRecordPayment(receipt.id, receipt.tenant_name, receipt.total_amount);
+              }
+            }}
+            className="flex items-center gap-2"
+          >
+            <Receipt className="h-4 w-4" />
+            Record Payment
+          </Button>
+        )}
+        
         <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
           <AlertDialogTrigger asChild>
             <Button variant="destructive" className="flex items-center gap-2">

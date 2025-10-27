@@ -357,10 +357,6 @@ const Index = () => {
 
                         <div className="grid grid-cols-2 gap-3 text-sm">
                           <div>
-                            <p className="text-muted-foreground">Last Reading</p>
-                            <p className="font-medium">{receipt.eb_reading_last_month.toFixed(0)}</p>
-                          </div>
-                          <div>
                             <p className="text-muted-foreground">Current Reading</p>
                             <p className="font-medium">{receipt.eb_reading_this_month.toFixed(0)}</p>
                           </div>
@@ -373,10 +369,6 @@ const Index = () => {
                             <p className="font-medium">₹{receipt.eb_charges.toFixed(2)}</p>
                           </div>
                           <div>
-                            <p className="text-muted-foreground">Rent Amount</p>
-                            <p className="font-medium">₹{receipt.rent_amount.toFixed(2)}</p>
-                          </div>
-                          <div>
                             <p className="text-muted-foreground">Payment Status</p>
                             {receipt.received_date && receipt.received_date !== '1970-01-01' ? (
                               <p className="font-medium text-primary">
@@ -387,20 +379,6 @@ const Index = () => {
                             )}
                           </div>
                         </div>
-
-                        {(!receipt.received_date || receipt.received_date === '1970-01-01') && (
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            className="w-full"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleRecordPayment(receipt.id, receipt.tenant_name, receipt.total_amount);
-                            }}
-                          >
-                            Record Payment
-                          </Button>
-                        )}
                       </div>
                     </Card>
                   ))
