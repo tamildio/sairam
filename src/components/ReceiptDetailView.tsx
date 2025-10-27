@@ -202,29 +202,9 @@ export const ReceiptDetailView = ({
               <p className="text-2xl font-bold text-primary">₹{receipt.eb_charges.toFixed(2)}</p>
             </div>
           </div>
-          
-          <div className="text-center pt-4 border-t">
-            <p className="text-sm text-muted-foreground">Average Rate per Unit</p>
-            <p className="text-lg font-semibold">₹{receipt.eb_rate_per_unit.toFixed(2)}</p>
-          </div>
         </div>
         
-        <div className="flex justify-center gap-4">
-          {!receipt.received_date && (
-            <Button 
-              onClick={() => {
-                // This will be handled by the parent component
-                if (onRecordPayment) {
-                  onRecordPayment(receipt.id, receipt.tenant_name, receipt.total_amount);
-                }
-              }}
-              className="flex items-center gap-2"
-            >
-              <Receipt className="h-4 w-4" />
-              Record Payment
-            </Button>
-          )}
-          
+        <div className="flex justify-center">
           <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
             <AlertDialogTrigger asChild>
               <Button variant="destructive" className="flex items-center gap-2">
