@@ -11,6 +11,8 @@ const TENANTS = [
   { name: "Sudhaagar", rent: 2500 },
   { name: "Rajalakshmi", rent: 3500 },
   { name: "Babu", rent: 3500 },
+  { name: "Mani Saranya house", rent: 3000 },
+  { name: "Harshan first house", rent: 3500 },
 ];
 
 interface RentBillFormProps {
