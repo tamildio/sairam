@@ -322,6 +322,12 @@ export const ReceiptDetailView = ({
     );
   }
 
+  // Calculate if EB charges were included in the total
+  // If total_amount equals rent_amount, EB charges were excluded
+  // If total_amount equals rent_amount + eb_charges, EB charges were included
+  const expectedTotalWithEb = receipt.rent_amount + receipt.eb_charges;
+  const includeEbFee = Math.abs(receipt.total_amount - expectedTotalWithEb) < 0.01; // Use small epsilon for float comparison
+
   const billData: BillData = {
     date: receipt.receipt_date,
     tenantName: receipt.tenant_name,
@@ -329,6 +335,7 @@ export const ReceiptDetailView = ({
     currentMonthReading: receipt.eb_reading_this_month,
     rentAmount: receipt.rent_amount,
     ebRatePerUnit: receipt.units_consumed > 0 ? receipt.eb_charges / receipt.units_consumed : 0,
+    includeEbFee: includeEbFee,
   };
 
   return (

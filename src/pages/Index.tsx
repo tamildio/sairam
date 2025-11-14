@@ -71,11 +71,11 @@ const Index = () => {
     console.log("🎯 handleGenerate called with:", { data, id });
     console.log("📊 Setting state:", {
       billData: data,
-      receiptId: id,
+      receiptId: id || null,
       showBill: true
     });
     setBillData(data);
-    setReceiptId(id);
+    setReceiptId(id || null);
     setShowBill(true);
     console.log("✅ State updated, bill should now be visible");
   };

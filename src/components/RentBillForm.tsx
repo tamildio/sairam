@@ -3,9 +3,11 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "lucide-react";
 import { toast } from "sonner";
-import { createReceipt, fetchReceipts } from "@/lib/api";
+import { fetchReceipts } from "@/lib/api";
 
 const TENANTS = [
   { name: "Sudhaagar", rent: 2500 },
@@ -26,6 +28,20 @@ export interface BillData {
   currentMonthReading: number;
   rentAmount: number;
   ebRatePerUnit: number;
+  includeEbFee?: boolean;
+  // Receipt data for saving (optional, only when ready to save)
+  receiptData?: {
+    receipt_date: string;
+    tenant_name: string;
+    eb_reading_last_month: number;
+    eb_reading_this_month: number;
+    eb_rate_per_unit: number;
+    units_consumed: number;
+    eb_charges: number;
+    rent_amount: number;
+    total_amount: number;
+    received_date: null;
+  };
 }
 
 export const RentBillForm = ({ onGenerate }: RentBillFormProps) => {
@@ -38,6 +54,8 @@ export const RentBillForm = ({ onGenerate }: RentBillFormProps) => {
     ebRatePerUnit: 7,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [includeEbFee, setIncludeEbFee] = useState(true);
+  const [includeInEbUsed, setIncludeInEbUsed] = useState(true);
 
   // Load the initial tenant's last reading on mount
   useEffect(() => {
@@ -73,7 +91,10 @@ export const RentBillForm = ({ onGenerate }: RentBillFormProps) => {
       const lastReading = isNaN(formData.lastMonthReading) ? 0 : formData.lastMonthReading;
       const unitsConsumed = formData.currentMonthReading - lastReading;
       const ebCharges = unitsConsumed * formData.ebRatePerUnit;
-      const totalAmount = formData.rentAmount + ebCharges;
+      // Calculate total amount: include EB charges only if checkbox is checked
+      const totalAmount = includeEbFee 
+        ? formData.rentAmount + ebCharges 
+        : formData.rentAmount;
 
       console.log("🧮 Calculated values:", {
         unitsConsumed,
@@ -81,6 +102,7 @@ export const RentBillForm = ({ onGenerate }: RentBillFormProps) => {
         totalAmount
       });
 
+      // Prepare receipt data but don't save yet - will be saved when user clicks "Save & Download"
       const receiptData = {
         receipt_date: formData.date,
         tenant_name: formData.tenantName,
@@ -92,24 +114,23 @@ export const RentBillForm = ({ onGenerate }: RentBillFormProps) => {
         rent_amount: formData.rentAmount,
         total_amount: totalAmount,
         received_date: null,
+        include_in_eb_used: includeInEbUsed,
       };
 
-      console.log("📤 Sending receipt data to API:", receiptData);
-
-      const receipt = await createReceipt(receiptData);
-
-      console.log("✅ Receipt created successfully:", receipt);
-      console.log("📞 Calling onGenerate with:", { formData, receiptId: receipt.id });
+      console.log("📋 Receipt data prepared (not saved yet):", receiptData);
+      console.log("📋 Include in EB Used:", includeInEbUsed);
+      console.log("📞 Calling onGenerate with prepared data");
       
-      toast.success("Receipt generated!");
-      onGenerate(formData, receipt.id);
+      toast.success("Receipt generated! Click 'Save & Download' to save it.");
+      // Pass the receipt data along with form data, but no receipt ID yet
+      onGenerate({ ...formData, includeEbFee, receiptData }, '');
     } catch (error) {
-      console.error("❌ Error creating receipt:", error);
+      console.error("❌ Error preparing receipt:", error);
       console.error("❌ Error details:", {
         message: error instanceof Error ? error.message : 'Unknown error',
         stack: error instanceof Error ? error.stack : undefined
       });
-      toast.error(`Failed to save receipt: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(`Failed to generate receipt: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       console.log("🏁 Setting isSubmitting to false");
       setIsSubmitting(false);
@@ -200,28 +221,23 @@ export const RentBillForm = ({ onGenerate }: RentBillFormProps) => {
           </div>
         </div>
 
-        <div className="space-y-3">
-          <Label>Select Tenant</Label>
-          <div className="grid gap-2">
-            {TENANTS.map((tenant) => (
-              <div
-                key={tenant.name}
-                onClick={() => handleTenantSelect(tenant.name)}
-                className={`flex items-center justify-between border rounded-lg p-4 hover:bg-secondary/50 transition-colors cursor-pointer ${
-                  formData.tenantName === tenant.name 
-                    ? 'border-primary bg-primary/5 ring-2 ring-primary/20' 
-                    : 'border-border'
-                }`}
-              >
-                <span className="font-medium text-lg">
-                  {tenant.name}
-                </span>
-                <span className="text-lg font-semibold text-primary">
-                  ₹{tenant.rent}
-                </span>
-              </div>
-            ))}
-          </div>
+        <div className="space-y-2">
+          <Label htmlFor="tenant">Select Tenant</Label>
+          <Select
+            value={formData.tenantName}
+            onValueChange={(value) => handleTenantSelect(value)}
+          >
+            <SelectTrigger id="tenant" className="w-full">
+              <SelectValue placeholder="Select a tenant" />
+            </SelectTrigger>
+            <SelectContent>
+              {TENANTS.map((tenant) => (
+                <SelectItem key={tenant.name} value={tenant.name}>
+                  {tenant.name} - ₹{tenant.rent}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -252,7 +268,34 @@ export const RentBillForm = ({ onGenerate }: RentBillFormProps) => {
           </div>
         </div>
 
-
+        <div className="space-y-3">
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="includeEbFee"
+              checked={includeEbFee}
+              onCheckedChange={(checked) => setIncludeEbFee(checked === true)}
+            />
+            <Label
+              htmlFor="includeEbFee"
+              className="text-sm font-normal cursor-pointer"
+            >
+              Include EB charges in total amount
+            </Label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="includeInEbUsed"
+              checked={includeInEbUsed}
+              onCheckedChange={(checked) => setIncludeInEbUsed(checked === true)}
+            />
+            <Label
+              htmlFor="includeInEbUsed"
+              className="text-sm font-normal cursor-pointer"
+            >
+              Include Unit Consumed in Tenant EB Used calculation
+            </Label>
+          </div>
+        </div>
 
         <Button 
           type="submit" 

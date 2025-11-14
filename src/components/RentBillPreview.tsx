@@ -3,7 +3,9 @@ import { Button } from "@/components/ui/button";
 import { BillData } from "./RentBillForm";
 import { Download } from "lucide-react";
 import html2canvas from "html2canvas";
-import { useRef } from "react";
+import { useRef, useState } from "react";
+import { createReceipt } from "@/lib/api";
+import { toast } from "sonner";
 
 interface RentBillPreviewProps {
   data: BillData;
@@ -15,9 +17,14 @@ interface RentBillPreviewProps {
 
 export const RentBillPreview = ({ data, receiptId, onSave, receivedDate, paymentMode }: RentBillPreviewProps) => {
   const billRef = useRef<HTMLDivElement>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [savedReceiptId, setSavedReceiptId] = useState<string | undefined>(receiptId);
   const unitsConsumed = data.currentMonthReading - data.lastMonthReading;
   const ebCharges = unitsConsumed * data.ebRatePerUnit;
-  const totalAmount = data.rentAmount + ebCharges;
+  // Calculate total amount: include EB charges only if includeEbFee is true (default to true for backward compatibility)
+  const totalAmount = (data.includeEbFee !== false) 
+    ? data.rentAmount + ebCharges 
+    : data.rentAmount;
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -31,7 +38,21 @@ export const RentBillPreview = ({ data, receiptId, onSave, receivedDate, payment
   const handleSaveAndDownload = async () => {
     if (!billRef.current) return;
     
+    setIsSaving(true);
+    
     try {
+      // If receipt hasn't been saved yet, save it now
+      let currentReceiptId = savedReceiptId;
+      if (!currentReceiptId && data.receiptData) {
+        console.log("💾 Saving receipt to database...");
+        const receipt = await createReceipt(data.receiptData);
+        currentReceiptId = receipt.id;
+        setSavedReceiptId(currentReceiptId);
+        console.log("✅ Receipt saved successfully:", receipt);
+        toast.success("Receipt saved to database!");
+      }
+      
+      // Download the receipt image
       const canvas = await html2canvas(billRef.current, {
         scale: 2,
         backgroundColor: '#ffffff',
@@ -42,9 +63,13 @@ export const RentBillPreview = ({ data, receiptId, onSave, receivedDate, payment
       link.href = canvas.toDataURL();
       link.click();
       
+      // Call onSave callback to refresh the receipts list
       if (onSave) onSave();
     } catch (error) {
-      console.error('Failed to capture screenshot:', error);
+      console.error('Failed to save or download receipt:', error);
+      toast.error(`Failed to save receipt: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -101,11 +126,23 @@ export const RentBillPreview = ({ data, receiptId, onSave, receivedDate, payment
                   <p className="text-sm text-invoice-label">
                     Current Reading: {data.currentMonthReading} units
                   </p>
-                  <p className="text-sm text-invoice-label">
-                    Units Consumed: {unitsConsumed} × ₹{data.ebRatePerUnit.toFixed(2)}
-                  </p>
+                  {data.includeEbFee !== false ? (
+                    <p className="text-sm text-invoice-label">
+                      Units Consumed: {unitsConsumed} × ₹{data.ebRatePerUnit.toFixed(2)}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground italic mt-1">
+                      Electric Charges Excluded
+                    </p>
+                  )}
                 </td>
-                <td className="p-3 md:p-4 text-right font-medium">₹{ebCharges.toFixed(2)}</td>
+                <td className="p-3 md:p-4 text-right font-medium">
+                  {data.includeEbFee !== false ? (
+                    `₹${ebCharges.toFixed(2)}`
+                  ) : (
+                    <span className="text-muted-foreground">₹0.00</span>
+                  )}
+                </td>
               </tr>
             </tbody>
             <tfoot className="bg-invoice-total/10 border-t-2 border-invoice-total">
@@ -121,11 +158,15 @@ export const RentBillPreview = ({ data, receiptId, onSave, receivedDate, payment
       </div>
     </Card>
     
-    {receiptId && onSave && (
+    {onSave && (
       <div className="flex gap-2 justify-center">
-        <Button onClick={handleSaveAndDownload} className="flex-1">
+        <Button 
+          onClick={handleSaveAndDownload} 
+          className="flex-1"
+          disabled={isSaving}
+        >
           <Download className="mr-2 h-4 w-4" />
-          Save & Download
+          {isSaving ? "Saving..." : savedReceiptId ? "Download" : "Save & Download"}
         </Button>
       </div>
     )}

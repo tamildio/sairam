@@ -23,6 +23,7 @@ export interface ReceiptRecord {
   total_amount: number
   received_date: string | null
   payment_mode: string | null
+  include_in_eb_used?: boolean | null
   created_at: string
 }
 
@@ -38,4 +39,5 @@ export interface ReceiptData {
   total_amount: number;
   received_date?: string | null;
   payment_mode?: string | null;
+  include_in_eb_used?: boolean | null;
 }
