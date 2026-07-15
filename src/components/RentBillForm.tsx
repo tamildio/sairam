@@ -10,11 +10,11 @@ import { toast } from "sonner";
 import { fetchReceipts } from "@/lib/api";
 
 const TENANTS = [
-  { name: "Sudhaagar", rent: 2500 },
+  { name: "Maadi veedu", rent: 2500 },
   { name: "Rajalakshmi", rent: 3500 },
-  { name: "Babu", rent: 3500 },
+  { name: "Sudhaagar", rent: 3500 },
   { name: "Mani Saranya house", rent: 3000 },
-  { name: "Harshan first house", rent: 3500 },
+  { name: "Paati first house", rent: 3500 },
 ];
 
 interface RentBillFormProps {

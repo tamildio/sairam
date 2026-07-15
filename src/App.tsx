@@ -6,17 +6,10 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import ReceiptHistory from "./pages/ReceiptHistory";
 import NotFound from "./pages/NotFound";
-import { testSupabaseConnection } from "./lib/test-supabase";
-import { useEffect } from "react";
 
 const queryClient = new QueryClient();
 
 const App = () => {
-  useEffect(() => {
-    // Test Supabase connection on app startup
-    testSupabaseConnection();
-  }, []);
-
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
