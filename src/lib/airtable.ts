@@ -55,7 +55,15 @@ const request = async (
   return res.json();
 };
 
-export const listAllReceipts = (): Promise<ReceiptRecord[]> => request("GET");
+// Airtable tables can end up with stray blank rows (e.g. default rows left over
+// from table creation). A real receipt always has both of these fields, so use
+// that to filter out junk rows before they reach any sorting/aggregation logic.
+const isCompleteReceipt = (r: ReceiptRecord) => Boolean(r.tenant_name && r.receipt_date);
+
+export const listAllReceipts = async (): Promise<ReceiptRecord[]> => {
+  const records = await request("GET");
+  return records.filter(isCompleteReceipt);
+};
 
 export const getReceiptById = (id: string): Promise<ReceiptRecord> => request("GET", { id });
 
