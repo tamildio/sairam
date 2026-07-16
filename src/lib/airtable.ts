@@ -2,10 +2,16 @@
 // The Airtable token never reaches the browser.
 const RECORDS_ENDPOINT = "/api/records";
 
+// Distinguishes a real tenant receipt from the auto-generated monthly rollups.
+// Stored as its own field so aggregate rows don't have to be identified by
+// magic tenant_name strings ("Tenant EB bill", "Tenant EB Used", ...).
+export type RecordType = "receipt" | "eb_bill_paid" | "eb_bill_aggregate" | "eb_used_aggregate";
+
 export interface ReceiptRecord {
   id: string;
   receipt_date: string;
   tenant_name: string;
+  record_type: RecordType;
   eb_reading_last_month: number;
   eb_reading_this_month: number;
   eb_rate_per_unit: number;
@@ -23,6 +29,7 @@ export interface ReceiptRecord {
 export interface ReceiptData {
   receipt_date: string;
   tenant_name: string;
+  record_type?: RecordType;
   eb_reading_last_month: number;
   eb_reading_this_month: number;
   eb_rate_per_unit: number;
@@ -56,9 +63,10 @@ const request = async (
 };
 
 // Airtable tables can end up with stray blank rows (e.g. default rows left over
-// from table creation). A real receipt always has both of these fields, so use
-// that to filter out junk rows before they reach any sorting/aggregation logic.
-const isCompleteReceipt = (r: ReceiptRecord) => Boolean(r.tenant_name && r.receipt_date);
+// from table creation). Every real row - receipt or aggregate - always has both
+// of these fields, so use that to filter out junk rows before they reach any
+// sorting/aggregation logic.
+const isCompleteReceipt = (r: ReceiptRecord) => Boolean(r.record_type && r.receipt_date);
 
 export const listAllReceipts = async (): Promise<ReceiptRecord[]> => {
   const records = await request("GET");

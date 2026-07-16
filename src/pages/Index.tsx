@@ -20,6 +20,7 @@ interface ReceiptRecord {
   id: string;
   receipt_date: string;
   tenant_name: string;
+  record_type: "receipt" | "eb_bill_paid" | "eb_bill_aggregate" | "eb_used_aggregate";
   eb_reading_last_month: number;
   eb_reading_this_month: number;
   units_consumed: number;
@@ -198,6 +199,7 @@ const Index = () => {
       const ebReceipt = {
         receipt_date: ebPaymentModal.unitsRecordedDate, // Use units recorded date
         tenant_name: "EB bill paid",
+        record_type: "eb_bill_paid" as const,
         eb_reading_last_month: 0,
         eb_reading_this_month: unitsConsumed,
         units_consumed: unitsConsumed,
@@ -243,7 +245,7 @@ const Index = () => {
 
   // Calculate receipts count for Tenant EB Used records
   useEffect(() => {
-    const tenantEbUsedReceipts = receipts.filter(receipt => receipt.tenant_name === 'Tenant EB Used');
+    const tenantEbUsedReceipts = receipts.filter(receipt => receipt.record_type === 'eb_used_aggregate');
     
     tenantEbUsedReceipts.forEach(async (receipt) => {
       try {
@@ -346,7 +348,7 @@ const Index = () => {
                       <div className="text-muted-foreground">Loading receipts...</div>
                     </div>
                   </Card>
-                ) : receipts.filter(receipt => receipt.tenant_name !== "EB bill paid" && receipt.tenant_name !== "Tenant EB Used").length === 0 ? (
+                ) : receipts.filter(receipt => receipt.record_type === "receipt").length === 0 ? (
                   <Card className="p-6">
                     <div className="text-center py-12">
                       <Receipt className="h-16 w-16 mx-auto mb-4 text-muted-foreground/40" />
@@ -358,7 +360,7 @@ const Index = () => {
                   </Card>
               ) : (
                 receipts
-                  .filter(receipt => receipt.tenant_name !== "EB bill paid" && receipt.tenant_name !== "Tenant EB Used")
+                  .filter(receipt => receipt.record_type === "receipt")
                   .map((receipt) => (
                     <Card 
                       key={receipt.id} 
@@ -442,7 +444,7 @@ const Index = () => {
                     <div className="text-muted-foreground">Loading EB data...</div>
                   </div>
                 </Card>
-              ) : receipts.filter(receipt => receipt.tenant_name === "EB bill paid" || receipt.tenant_name === "Tenant EB Used").length === 0 ? (
+              ) : receipts.filter(receipt => receipt.record_type === "eb_bill_paid" || receipt.record_type === "eb_used_aggregate").length === 0 ? (
                 <Card className="p-6">
                   <div className="text-center py-12">
                     <Receipt className="h-16 w-16 mx-auto mb-4 text-muted-foreground/40" />
@@ -456,7 +458,7 @@ const Index = () => {
                 <div className="space-y-4">
                   {/* Filter EB bills and Tenant EB Used records */}
                   {receipts
-                    .filter(receipt => receipt.tenant_name === "EB bill paid" || receipt.tenant_name === "Tenant EB Used")
+                    .filter(receipt => receipt.record_type === "eb_bill_paid" || receipt.record_type === "eb_used_aggregate")
                     .sort((a, b) => new Date(b.receipt_date).getTime() - new Date(a.receipt_date).getTime())
                     .map((receipt) => (
                       <Card 
@@ -477,7 +479,7 @@ const Index = () => {
                             </Badge>
                           </div>
 
-                          {receipt.tenant_name === "Tenant EB Used" ? (
+                          {receipt.record_type === "eb_used_aggregate" ? (
                             <div className="grid grid-cols-2 gap-3 text-sm">
                               <div>
                                 <p className="text-muted-foreground">Units Consumed</p>

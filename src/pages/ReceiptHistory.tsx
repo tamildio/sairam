@@ -13,6 +13,7 @@ interface ReceiptRecord {
   id: string;
   receipt_date: string;
   tenant_name: string;
+  record_type: "receipt" | "eb_bill_paid" | "eb_bill_aggregate" | "eb_used_aggregate";
   eb_reading_last_month: number;
   eb_reading_this_month: number;
   units_consumed: number;

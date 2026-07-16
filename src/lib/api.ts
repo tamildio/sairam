@@ -8,8 +8,7 @@ import {
   ReceiptRecord,
 } from "./airtable";
 
-// tenant_name values that are aggregated system records rather than real tenant receipts.
-const SYSTEM_RECORD_NAMES = ["EB bill paid", "Tenant EB bill", "Tenant EB Used"];
+const isRealReceipt = (r: ReceiptRecord) => r.record_type === "receipt";
 
 const monthRange = (receiptDate: string) => {
   const date = new Date(receiptDate);
@@ -54,7 +53,7 @@ export const fetchReceipts = async (limit?: number, tenant_name?: string) => {
 };
 
 export const createReceipt = async (receipt: ReceiptData) => {
-  const data = await insertReceipt(receipt);
+  const data = await insertReceipt({ record_type: "receipt", ...receipt });
 
   // Automatically create/update Tenant EB bill and Tenant EB Used for the month
   try {
@@ -96,12 +95,12 @@ export const deleteReceipt = async (id: string) => {
     throw new Error("Receipt not found");
   }
 
-  const { receipt_date: receiptDate, tenant_name: tenantName } = receiptToDelete;
+  const { receipt_date: receiptDate } = receiptToDelete;
 
   await removeReceipt(id);
 
-  // Recalculate Tenant EB Used for the month, unless the deleted receipt was itself a system record
-  if (tenantName && !SYSTEM_RECORD_NAMES.includes(tenantName)) {
+  // Recalculate Tenant EB Used for the month, unless the deleted receipt was itself an aggregate/system record
+  if (isRealReceipt(receiptToDelete)) {
     try {
       await createOrUpdateTenantEbUsed(receiptDate);
     } catch (recalcError) {
@@ -116,9 +115,7 @@ export const createOrUpdateTenantEbBill = async (receiptDate: string) => {
   const { year, month, startDate, endDate } = monthRange(receiptDate);
   const allReceipts = await listAllReceipts();
 
-  const tenantReceipts = allReceipts.filter(
-    (r) => r.tenant_name !== "Tenant EB bill" && inMonth(r, startDate, endDate)
-  );
+  const tenantReceipts = allReceipts.filter((r) => isRealReceipt(r) && inMonth(r, startDate, endDate));
 
   if (tenantReceipts.length === 0) {
     return null;
@@ -129,12 +126,13 @@ export const createOrUpdateTenantEbBill = async (receiptDate: string) => {
   const averageRatePerUnit = totalUnitsConsumed > 0 ? totalEbCharges / totalUnitsConsumed : 0;
 
   const existing = allReceipts.find(
-    (r) => r.tenant_name === "Tenant EB bill" && inMonth(r, startDate, endDate)
+    (r) => r.record_type === "eb_bill_aggregate" && inMonth(r, startDate, endDate)
   );
 
   const tenantEbBillData: Partial<ReceiptData> = {
     receipt_date: `${year}-${month.toString().padStart(2, "0")}-01`,
     tenant_name: "Tenant EB bill",
+    record_type: "eb_bill_aggregate",
     eb_reading_last_month: 0,
     eb_reading_this_month: totalUnitsConsumed,
     eb_rate_per_unit: averageRatePerUnit,
@@ -154,14 +152,11 @@ export const createOrUpdateTenantEbUsed = async (receiptDate: string) => {
   const allReceipts = await listAllReceipts();
 
   const tenantReceipts = allReceipts.filter(
-    (r) =>
-      !SYSTEM_RECORD_NAMES.includes(r.tenant_name) &&
-      inMonth(r, startDate, endDate) &&
-      includedInEbUsed(r)
+    (r) => isRealReceipt(r) && inMonth(r, startDate, endDate) && includedInEbUsed(r)
   );
 
   const existingTenantEbUsedRecords = allReceipts.filter(
-    (r) => r.tenant_name === "Tenant EB Used" && inMonth(r, startDate, endDate)
+    (r) => r.record_type === "eb_used_aggregate" && inMonth(r, startDate, endDate)
   );
 
   if (tenantReceipts.length === 0) {
@@ -193,6 +188,7 @@ export const createOrUpdateTenantEbUsed = async (receiptDate: string) => {
   const tenantEbUsedData: Partial<ReceiptData> = {
     receipt_date: `${year}-${month.toString().padStart(2, "0")}-01`,
     tenant_name: "Tenant EB Used",
+    record_type: "eb_used_aggregate",
     eb_reading_last_month: 0,
     eb_reading_this_month: totalUnitsConsumed,
     eb_rate_per_unit: averageRatePerUnit,
@@ -214,9 +210,7 @@ export const createOrUpdateTenantEbUsed = async (receiptDate: string) => {
 export const ensureTenantEbUsedRecords = async () => {
   const allReceipts = await listAllReceipts();
 
-  const includedReceipts = allReceipts.filter(
-    (r) => !SYSTEM_RECORD_NAMES.includes(r.tenant_name) && includedInEbUsed(r)
-  );
+  const includedReceipts = allReceipts.filter((r) => isRealReceipt(r) && includedInEbUsed(r));
 
   if (includedReceipts.length === 0) {
     return [];
@@ -249,9 +243,6 @@ export const getReceiptsCountForMonth = async (receiptDate: string) => {
   const allReceipts = await listAllReceipts();
 
   return allReceipts.filter(
-    (r) =>
-      !SYSTEM_RECORD_NAMES.includes(r.tenant_name) &&
-      inMonth(r, startDate, endDate) &&
-      includedInEbUsed(r)
+    (r) => isRealReceipt(r) && inMonth(r, startDate, endDate) && includedInEbUsed(r)
   ).length;
 };

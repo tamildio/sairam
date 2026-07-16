@@ -12,6 +12,7 @@ interface ReceiptRecord {
   id: string;
   receipt_date: string;
   tenant_name: string;
+  record_type: "receipt" | "eb_bill_paid" | "eb_bill_aggregate" | "eb_used_aggregate";
   eb_reading_last_month: number;
   eb_reading_this_month: number;
   units_consumed: number;
@@ -40,11 +41,9 @@ export const ReceiptDetailView = ({
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [receiptsCount, setReceiptsCount] = useState<number | null>(null);
 
-  if (!receipt) return null;
-
   // Calculate receipts count for Tenant EB Used records
   useEffect(() => {
-    if (receipt.tenant_name === 'Tenant EB Used') {
+    if (receipt?.record_type === 'eb_used_aggregate') {
       getReceiptsCountForMonth(receipt.receipt_date)
         .then(count => setReceiptsCount(count))
         .catch(error => {
@@ -54,22 +53,17 @@ export const ReceiptDetailView = ({
     }
   }, [receipt]);
 
+  if (!receipt) return null;
+
   const handleDelete = () => {
     onDelete(receipt.id);
     setIsDeleteDialogOpen(false);
     onBack();
   };
 
-  // Check if this is an EB bill paid record
-  const isEbBillPaid = receipt.tenant_name === 'EB bill paid';
-  const isTenantEbBill = receipt.tenant_name === 'Tenant EB bill';
-  const isTenantEbUsed = receipt.tenant_name === 'Tenant EB Used';
-  
-  // Debug logging
-  console.log('ReceiptDetailView - receipt:', receipt);
-  console.log('ReceiptDetailView - isEbBillPaid:', isEbBillPaid);
-  console.log('ReceiptDetailView - isTenantEbBill:', isTenantEbBill);
-  console.log('ReceiptDetailView - isTenantEbUsed:', isTenantEbUsed);
+  const isEbBillPaid = receipt.record_type === 'eb_bill_paid';
+  const isTenantEbBill = receipt.record_type === 'eb_bill_aggregate';
+  const isTenantEbUsed = receipt.record_type === 'eb_used_aggregate';
 
   if (isEbBillPaid) {
     // EB bill paid record - consistent card layout
