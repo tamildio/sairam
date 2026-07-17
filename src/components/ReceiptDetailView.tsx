@@ -22,6 +22,8 @@ interface ReceiptRecord {
   received_date: string;
   payment_mode?: string | null;
   receipts_count?: number; // Count of receipts used for aggregation
+  consumer_number?: string | null;
+  receipt_no?: string | null;
   created_at: string;
 }
 
@@ -89,6 +91,22 @@ export const ReceiptDetailView = ({
                   </div>
                 )}
               </div>
+              {(receipt.consumer_number || receipt.receipt_no) && (
+                <div className="flex justify-between items-start mt-4 pt-4 border-t border-invoice-border/50">
+                  {receipt.consumer_number && (
+                    <div>
+                      <p className="text-invoice-label text-sm uppercase tracking-wide">Consumer Number</p>
+                      <p className="text-sm font-medium mt-1">{receipt.consumer_number}</p>
+                    </div>
+                  )}
+                  {receipt.receipt_no && (
+                    <div className="text-right">
+                      <p className="text-invoice-label text-sm uppercase tracking-wide">Receipt No</p>
+                      <p className="text-sm font-medium mt-1">{receipt.receipt_no}</p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Details Table */}

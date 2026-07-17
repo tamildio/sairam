@@ -30,6 +30,8 @@ interface ReceiptRecord {
   received_date: string;
   payment_mode?: string | null;
   receipts_count?: number; // Count of receipts used for aggregation
+  consumer_number?: string | null;
+  receipt_no?: string | null;
   created_at: string;
 }
 
@@ -59,12 +61,16 @@ const Index = () => {
     unitsConsumed: string;
     paymentDate: string;
     unitsRecordedDate: string;
+    consumerNumber: string;
+    receiptNo: string;
   }>({
     isOpen: false,
     ebAmount: "",
     unitsConsumed: "",
     paymentDate: "",
     unitsRecordedDate: "",
+    consumerNumber: "",
+    receiptNo: "",
   });
   const navigate = useNavigate();
 
@@ -177,6 +183,8 @@ const Index = () => {
       unitsConsumed: "",
       paymentDate: today,
       unitsRecordedDate: today,
+      consumerNumber: "",
+      receiptNo: "",
     });
   };
 
@@ -191,6 +199,11 @@ const Index = () => {
 
     if (!ebPaymentModal.paymentDate || !ebPaymentModal.unitsRecordedDate) {
       toast.error("Please select both payment date and units recorded date");
+      return;
+    }
+
+    if (!ebPaymentModal.consumerNumber.trim()) {
+      toast.error("Please enter the EB consumer number for this bill");
       return;
     }
 
@@ -209,6 +222,8 @@ const Index = () => {
         total_amount: ebAmount,
         received_date: ebPaymentModal.paymentDate, // Use payment date
         payment_mode: "manual",
+        consumer_number: ebPaymentModal.consumerNumber.trim(),
+        receipt_no: ebPaymentModal.receiptNo.trim() || null,
       };
 
       await createReceipt(ebReceipt);
@@ -220,6 +235,8 @@ const Index = () => {
         unitsConsumed: "",
         paymentDate: "",
         unitsRecordedDate: "",
+        consumerNumber: "",
+        receiptNo: "",
       });
     } catch (error) {
       toast.error("Failed to record EB bill payment");
@@ -233,6 +250,8 @@ const Index = () => {
       unitsConsumed: "",
       paymentDate: "",
       unitsRecordedDate: "",
+      consumerNumber: "",
+      receiptNo: "",
     });
   };
 
@@ -470,7 +489,10 @@ const Index = () => {
                           <div className="flex items-start justify-between gap-4">
                             <div>
                               <h3 className="font-semibold text-lg">{format(new Date(receipt.receipt_date), 'MMMM yyyy')}</h3>
-                              <p className="text-sm text-muted-foreground">{receipt.tenant_name}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {receipt.tenant_name}
+                                {receipt.consumer_number ? ` • ${receipt.consumer_number}` : ""}
+                              </p>
                             </div>
                             <Badge variant="outline" className="text-lg font-semibold">
                               ₹{receipt.total_amount.toFixed(2)}
@@ -535,6 +557,16 @@ const Index = () => {
           
           <div className="space-y-4 py-4">
             <div className="space-y-2">
+              <Label htmlFor="consumerNumber">EB Consumer Number</Label>
+              <Input
+                id="consumerNumber"
+                placeholder="e.g. 09270003185"
+                value={ebPaymentModal.consumerNumber}
+                onChange={(e) => setEbPaymentModal(prev => ({ ...prev, consumerNumber: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="unitsRecordedDate">Units Recorded Date</Label>
               <Input
                 id="unitsRecordedDate"
@@ -575,6 +607,16 @@ const Index = () => {
                 placeholder="Enter EB amount"
                 value={ebPaymentModal.ebAmount}
                 onChange={(e) => setEbPaymentModal(prev => ({ ...prev, ebAmount: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="receiptNo">Receipt No (optional)</Label>
+              <Input
+                id="receiptNo"
+                placeholder="e.g. PGIBP1871341798"
+                value={ebPaymentModal.receiptNo}
+                onChange={(e) => setEbPaymentModal(prev => ({ ...prev, receiptNo: e.target.value }))}
               />
             </div>
           </div>

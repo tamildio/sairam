@@ -23,6 +23,9 @@ export interface ReceiptRecord {
   payment_mode: string | null;
   include_in_eb_used?: boolean | null;
   receipts_count?: number | null;
+  // Which EB service/meter this bill payment belongs to (only set on eb_bill_paid rows).
+  consumer_number?: string | null;
+  receipt_no?: string | null;
   created_at: string;
 }
 
@@ -41,6 +44,8 @@ export interface ReceiptData {
   payment_mode?: string | null;
   include_in_eb_used?: boolean | null;
   receipts_count?: number | null;
+  consumer_number?: string | null;
+  receipt_no?: string | null;
 }
 
 const request = async (
