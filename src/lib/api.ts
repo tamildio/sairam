@@ -247,6 +247,20 @@ export const getReceiptsCountForMonth = async (receiptDate: string) => {
   ).length;
 };
 
+export interface EbRoundMonthlyCharge {
+  monthKey: string; // YYYY-MM
+  amount: number;
+  unitsConsumed: number;
+}
+
+export interface EbRoundBill {
+  consumerNumber: string | null;
+  amount: number;
+  unitsConsumed: number;
+  receiptNo: string | null;
+  paidDate: string | null;
+}
+
 export interface EbReconciliationRound {
   periodKey: string; // YYYY-MM of the billing round
   billCount: number; // how many of the EB services reported a bill this round (0 if pending)
@@ -254,9 +268,30 @@ export interface EbReconciliationRound {
   totalCharged: number; // sum of Tenant EB Used for the 2 calendar months this round covers
   variance: number; // totalPaid - totalCharged (positive = paid more than collected from tenants)
   isPending: boolean; // true if tenants have been charged but no EB bill has arrived yet
+  monthlyCharges: EbRoundMonthlyCharge[]; // tenant EB Used broken out per calendar month
+  bills: EbRoundBill[]; // EB bill paid broken out per consumer number/service
 }
 
-type ReconciliationInput = Pick<ReceiptRecord, "record_type" | "receipt_date" | "total_amount">;
+type ReconciliationInput = Pick<
+  ReceiptRecord,
+  | "record_type"
+  | "receipt_date"
+  | "total_amount"
+  | "units_consumed"
+  | "consumer_number"
+  | "receipt_no"
+  | "received_date"
+>;
+
+const monthKeyOf = (dateStr: string) => {
+  const d = new Date(dateStr);
+  return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, "0")}`;
+};
+
+const prevMonthKeyOf = (year: number, month: number) => {
+  const prevDate = new Date(year, month - 2, 1); // month is 1-indexed, so month-2 (0-indexed) is the previous month
+  return `${prevDate.getFullYear()}-${(prevDate.getMonth() + 1).toString().padStart(2, "0")}`;
+};
 
 // Reconciles what was actually paid across all EB service connections against what
 // was collected from tenants over the same ~2-month billing window. EB bills across
@@ -266,16 +301,18 @@ export const computeEbReconciliation = (receipts: ReconciliationInput[]): EbReco
   const ebBills = receipts.filter((r) => r.record_type === "eb_bill_paid");
   const ebUsed = receipts.filter((r) => r.record_type === "eb_used_aggregate");
 
-  const monthKeyOf = (dateStr: string) => {
-    const d = new Date(dateStr);
-    return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, "0")}`;
-  };
-
-  const usedByMonth = new Map<string, number>();
+  const usedByMonth = new Map<string, { amount: number; units: number }>();
   ebUsed.forEach((r) => {
     const key = monthKeyOf(r.receipt_date);
-    usedByMonth.set(key, (usedByMonth.get(key) || 0) + r.total_amount);
+    const existing = usedByMonth.get(key) || { amount: 0, units: 0 };
+    usedByMonth.set(key, { amount: existing.amount + r.total_amount, units: existing.units + r.units_consumed });
   });
+
+  const monthlyChargesFor = (...keys: string[]): EbRoundMonthlyCharge[] =>
+    keys
+      .filter((key) => usedByMonth.has(key))
+      .map((key) => ({ monthKey: key, amount: usedByMonth.get(key)!.amount, unitsConsumed: usedByMonth.get(key)!.units }))
+      .sort((a, b) => a.monthKey.localeCompare(b.monthKey));
 
   const billsByMonth = new Map<string, ReconciliationInput[]>();
   ebBills.forEach((r) => {
@@ -290,11 +327,10 @@ export const computeEbReconciliation = (receipts: ReconciliationInput[]): EbReco
     const [year, month] = key.split("-").map(Number);
     const totalPaid = bills.reduce((sum, b) => sum + b.total_amount, 0);
 
-    const prevDate = new Date(year, month - 2, 1); // the calendar month before this round
-    const prevKey = `${prevDate.getFullYear()}-${(prevDate.getMonth() + 1).toString().padStart(2, "0")}`;
+    const prevKey = prevMonthKeyOf(year, month);
     coveredMonths.add(key);
     coveredMonths.add(prevKey);
-    const totalCharged = (usedByMonth.get(key) || 0) + (usedByMonth.get(prevKey) || 0);
+    const totalCharged = (usedByMonth.get(key)?.amount || 0) + (usedByMonth.get(prevKey)?.amount || 0);
 
     return {
       periodKey: key,
@@ -303,6 +339,14 @@ export const computeEbReconciliation = (receipts: ReconciliationInput[]): EbReco
       totalCharged,
       variance: totalPaid - totalCharged,
       isPending: false,
+      monthlyCharges: monthlyChargesFor(prevKey, key),
+      bills: bills.map((b) => ({
+        consumerNumber: b.consumer_number ?? null,
+        amount: b.total_amount,
+        unitsConsumed: b.units_consumed,
+        receiptNo: b.receipt_no ?? null,
+        paidDate: b.received_date ?? null,
+      })),
     };
   });
 
@@ -318,22 +362,27 @@ export const computeEbReconciliation = (receipts: ReconciliationInput[]): EbReco
   // Months already charged to tenants but not yet claimed by any bill's window -
   // the EB bill for that period just hasn't arrived yet. Grouped into the same
   // 2-month window a real bill for that period would eventually cover.
-  const pendingByRound = new Map<string, number>();
-  usedByMonth.forEach((amount, key) => {
+  const pendingByRound = new Map<string, string[]>();
+  usedByMonth.forEach((_value, key) => {
     if (coveredMonths.has(key)) return;
     const [year, month] = key.split("-").map(Number);
     const roundKey = upcomingRoundKeyFor(year, month);
-    pendingByRound.set(roundKey, (pendingByRound.get(roundKey) || 0) + amount);
+    if (!pendingByRound.has(roundKey)) pendingByRound.set(roundKey, []);
+    pendingByRound.get(roundKey)!.push(key);
   });
 
-  pendingByRound.forEach((amount, key) => {
+  pendingByRound.forEach((monthKeys, key) => {
+    const monthlyCharges = monthlyChargesFor(...monthKeys);
+    const totalCharged = monthlyCharges.reduce((sum, m) => sum + m.amount, 0);
     rounds.push({
       periodKey: key,
       billCount: 0,
       totalPaid: 0,
-      totalCharged: amount,
-      variance: -amount,
+      totalCharged,
+      variance: -totalCharged,
       isPending: true,
+      monthlyCharges,
+      bills: [],
     });
   });
 

@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { fetchReceipts, updateReceipt, deleteReceipt, createReceipt, getReceiptsCountForMonth, computeEbReconciliation } from "@/lib/api";
+import { fetchReceipts, updateReceipt, deleteReceipt, createReceipt, getReceiptsCountForMonth, computeEbReconciliation, EbReconciliationRound } from "@/lib/api";
 import { format } from "date-fns";
 
 interface ReceiptRecord {
@@ -56,6 +56,7 @@ const Index = () => {
   });
   const [selectedReceipt, setSelectedReceipt] = useState<ReceiptRecord | null>(null);
   const [selectedEbBill, setSelectedEbBill] = useState<ReceiptRecord | null>(null);
+  const [selectedEbRound, setSelectedEbRound] = useState<EbReconciliationRound | null>(null);
   const [ebPaymentModal, setEbPaymentModal] = useState<{
     isOpen: boolean;
     ebAmount: string;
@@ -450,6 +451,92 @@ const Index = () => {
                   onRecordPayment={handleRecordPayment}
                 />
               </div>
+            ) : selectedEbRound ? (
+              <div className="space-y-4">
+                <div className="flex gap-2">
+                  <Button onClick={() => setSelectedEbRound(null)} variant="outline" className="flex-1">
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Back to Reconciliation
+                  </Button>
+                </div>
+
+                <Card className="p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-xl font-semibold">
+                      {format(new Date(`${selectedEbRound.periodKey}-01`), 'MMMM yyyy')}
+                    </h3>
+                    <Badge variant="secondary">
+                      {selectedEbRound.isPending ? "Awaiting bill" : `${selectedEbRound.billCount} bill${selectedEbRound.billCount !== 1 ? 's' : ''}`}
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3 text-sm">
+                    <div>
+                      <p className="text-muted-foreground">Paid to EB</p>
+                      <p className="font-medium">
+                        {selectedEbRound.isPending ? "—" : `₹${selectedEbRound.totalPaid.toFixed(2)}`}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Charged to Tenants</p>
+                      <p className="font-medium">₹{selectedEbRound.totalCharged.toFixed(2)}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">
+                        {selectedEbRound.isPending ? "Charged So Far" : "Difference"}
+                      </p>
+                      {selectedEbRound.isPending ? (
+                        <p className="font-semibold">₹{selectedEbRound.totalCharged.toFixed(2)}</p>
+                      ) : (
+                        <p className={`font-semibold ${selectedEbRound.variance > 0 ? 'text-red-600' : selectedEbRound.variance < 0 ? 'text-green-600' : ''}`}>
+                          {selectedEbRound.variance > 0 ? '+' : ''}₹{selectedEbRound.variance.toFixed(2)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </Card>
+
+                <Card className="p-6">
+                  <h4 className="font-semibold mb-3">Tenant EB Usage by Month</h4>
+                  {selectedEbRound.monthlyCharges.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No tenant EB usage recorded for this period</p>
+                  ) : (
+                    <div className="divide-y">
+                      {selectedEbRound.monthlyCharges.map((m) => (
+                        <div key={m.monthKey} className="flex items-center justify-between py-2 text-sm">
+                          <div>
+                            <p className="font-medium">{format(new Date(`${m.monthKey}-01`), 'MMMM yyyy')}</p>
+                            <p className="text-muted-foreground">{m.unitsConsumed.toFixed(0)} units consumed</p>
+                          </div>
+                          <p className="font-semibold">₹{m.amount.toFixed(2)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </Card>
+
+                <Card className="p-6">
+                  <h4 className="font-semibold mb-3">EB Bills by Service</h4>
+                  {selectedEbRound.bills.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No EB bill recorded yet for this period</p>
+                  ) : (
+                    <div className="divide-y">
+                      {selectedEbRound.bills.map((b, i) => (
+                        <div key={`${b.consumerNumber}-${i}`} className="flex items-center justify-between py-2 text-sm">
+                          <div>
+                            <p className="font-medium">{b.consumerNumber || "Unknown service"}</p>
+                            <p className="text-muted-foreground">
+                              {b.unitsConsumed.toFixed(0)} units
+                              {b.paidDate ? ` • Paid ${format(new Date(b.paidDate), 'MMM dd, yyyy')}` : ""}
+                              {b.receiptNo ? ` • ${b.receiptNo}` : ""}
+                            </p>
+                          </div>
+                          <p className="font-semibold">₹{b.amount.toFixed(2)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </Card>
+              </div>
             ) : (
               <div className="space-y-4">
                 {/* Record EB Payment Button */}
@@ -466,7 +553,11 @@ const Index = () => {
                       EB Reconciliation
                     </h3>
                     {ebReconciliation.map((round) => (
-                      <Card key={round.periodKey} className={`p-4 ${round.isPending ? 'border-dashed' : ''}`}>
+                      <Card
+                        key={round.periodKey}
+                        className={`p-4 cursor-pointer hover:shadow-md transition-shadow ${round.isPending ? 'border-dashed' : ''}`}
+                        onClick={() => setSelectedEbRound(round)}
+                      >
                         <div className="flex items-center justify-between mb-3">
                           <h4 className="font-semibold">
                             {format(new Date(`${round.periodKey}-01`), 'MMMM yyyy')}
