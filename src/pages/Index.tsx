@@ -502,12 +502,24 @@ const Index = () => {
                   ) : (
                     <div className="divide-y">
                       {selectedEbRound.monthlyCharges.map((m) => (
-                        <div key={m.monthKey} className="flex items-center justify-between py-2 text-sm">
-                          <div>
-                            <p className="font-medium">{format(new Date(`${m.monthKey}-01`), 'MMMM yyyy')}</p>
-                            <p className="text-muted-foreground">{m.unitsConsumed.toFixed(0)} units consumed</p>
+                        <div key={m.monthKey} className="py-2">
+                          <div className="flex items-center justify-between text-sm">
+                            <div>
+                              <p className="font-medium">{format(new Date(`${m.monthKey}-01`), 'MMMM yyyy')}</p>
+                              <p className="text-muted-foreground">{m.unitsConsumed.toFixed(0)} units consumed</p>
+                            </div>
+                            <p className="font-semibold">₹{m.amount.toFixed(2)}</p>
                           </div>
-                          <p className="font-semibold">₹{m.amount.toFixed(2)}</p>
+                          {m.tenants.length > 0 && (
+                            <div className="mt-2 ml-3 pl-3 border-l-2 space-y-1">
+                              {m.tenants.map((t, i) => (
+                                <div key={`${t.tenantName}-${i}`} className="flex items-center justify-between text-xs text-muted-foreground">
+                                  <span>{t.tenantName} • {t.unitsConsumed.toFixed(0)} units</span>
+                                  <span>₹{t.amount.toFixed(2)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>

@@ -247,10 +247,17 @@ export const getReceiptsCountForMonth = async (receiptDate: string) => {
   ).length;
 };
 
+export interface EbRoundTenantCharge {
+  tenantName: string;
+  unitsConsumed: number;
+  amount: number;
+}
+
 export interface EbRoundMonthlyCharge {
   monthKey: string; // YYYY-MM
   amount: number;
   unitsConsumed: number;
+  tenants: EbRoundTenantCharge[]; // the individual receipts that make up this month's total
 }
 
 export interface EbRoundBill {
@@ -281,6 +288,9 @@ type ReconciliationInput = Pick<
   | "consumer_number"
   | "receipt_no"
   | "received_date"
+  | "tenant_name"
+  | "eb_charges"
+  | "include_in_eb_used"
 >;
 
 const monthKeyOf = (dateStr: string) => {
@@ -308,10 +318,29 @@ export const computeEbReconciliation = (receipts: ReconciliationInput[]): EbReco
     usedByMonth.set(key, { amount: existing.amount + r.total_amount, units: existing.units + r.units_consumed });
   });
 
+  // The individual tenant receipts behind each month's Tenant EB Used total.
+  const tenantReceiptsByMonth = new Map<string, EbRoundTenantCharge[]>();
+  receipts
+    .filter((r) => r.record_type === "receipt" && r.include_in_eb_used !== false)
+    .forEach((r) => {
+      const key = monthKeyOf(r.receipt_date);
+      if (!tenantReceiptsByMonth.has(key)) tenantReceiptsByMonth.set(key, []);
+      tenantReceiptsByMonth.get(key)!.push({
+        tenantName: r.tenant_name,
+        unitsConsumed: r.units_consumed,
+        amount: r.eb_charges,
+      });
+    });
+
   const monthlyChargesFor = (...keys: string[]): EbRoundMonthlyCharge[] =>
     keys
       .filter((key) => usedByMonth.has(key))
-      .map((key) => ({ monthKey: key, amount: usedByMonth.get(key)!.amount, unitsConsumed: usedByMonth.get(key)!.units }))
+      .map((key) => ({
+        monthKey: key,
+        amount: usedByMonth.get(key)!.amount,
+        unitsConsumed: usedByMonth.get(key)!.units,
+        tenants: tenantReceiptsByMonth.get(key) || [],
+      }))
       .sort((a, b) => a.monthKey.localeCompare(b.monthKey));
 
   const billsByMonth = new Map<string, ReconciliationInput[]>();
