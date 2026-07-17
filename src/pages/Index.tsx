@@ -469,10 +469,8 @@ const Index = () => {
                         <div className="space-y-4">
                           <div className="flex items-start justify-between gap-4">
                             <div>
-                              <h3 className="font-semibold text-lg">{receipt.tenant_name}</h3>
-                              <p className="text-sm text-muted-foreground">
-                                Units Recorded: {format(new Date(receipt.receipt_date), 'MMM dd, yyyy')}
-                              </p>
+                              <h3 className="font-semibold text-lg">{format(new Date(receipt.receipt_date), 'MMMM yyyy')}</h3>
+                              <p className="text-sm text-muted-foreground">{receipt.tenant_name}</p>
                             </div>
                             <Badge variant="outline" className="text-lg font-semibold">
                               ₹{receipt.total_amount.toFixed(2)}
