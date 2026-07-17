@@ -246,3 +246,60 @@ export const getReceiptsCountForMonth = async (receiptDate: string) => {
     (r) => isRealReceipt(r) && inMonth(r, startDate, endDate) && includedInEbUsed(r)
   ).length;
 };
+
+export interface EbReconciliationRound {
+  periodKey: string; // YYYY-MM of the billing round
+  billCount: number; // how many of the EB services reported a bill this round
+  totalPaid: number; // sum of all EB service bills for this round
+  totalCharged: number; // sum of Tenant EB Used for the 2 calendar months this round covers
+  variance: number; // totalPaid - totalCharged (positive = paid more than collected from tenants)
+}
+
+type ReconciliationInput = Pick<ReceiptRecord, "record_type" | "receipt_date" | "total_amount">;
+
+// Reconciles what was actually paid across all EB service connections against what
+// was collected from tenants over the same ~2-month billing window. EB bills across
+// the different consumer numbers land in the same calendar month even when a few
+// days apart, so bills are grouped by month rather than exact date.
+export const computeEbReconciliation = (receipts: ReconciliationInput[]): EbReconciliationRound[] => {
+  const ebBills = receipts.filter((r) => r.record_type === "eb_bill_paid");
+  const ebUsed = receipts.filter((r) => r.record_type === "eb_used_aggregate");
+
+  const monthKeyOf = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, "0")}`;
+  };
+
+  const usedByMonth = new Map<string, number>();
+  ebUsed.forEach((r) => {
+    const key = monthKeyOf(r.receipt_date);
+    usedByMonth.set(key, (usedByMonth.get(key) || 0) + r.total_amount);
+  });
+
+  const billsByMonth = new Map<string, ReconciliationInput[]>();
+  ebBills.forEach((r) => {
+    const key = monthKeyOf(r.receipt_date);
+    if (!billsByMonth.has(key)) billsByMonth.set(key, []);
+    billsByMonth.get(key)!.push(r);
+  });
+
+  const rounds: EbReconciliationRound[] = Array.from(billsByMonth.entries()).map(([key, bills]) => {
+    const [year, month] = key.split("-").map(Number);
+    const totalPaid = bills.reduce((sum, b) => sum + b.total_amount, 0);
+
+    const prevDate = new Date(year, month - 2, 1); // the calendar month before this round
+    const prevKey = `${prevDate.getFullYear()}-${(prevDate.getMonth() + 1).toString().padStart(2, "0")}`;
+    const totalCharged = (usedByMonth.get(key) || 0) + (usedByMonth.get(prevKey) || 0);
+
+    return {
+      periodKey: key,
+      billCount: bills.length,
+      totalPaid,
+      totalCharged,
+      variance: totalPaid - totalCharged,
+    };
+  });
+
+  rounds.sort((a, b) => b.periodKey.localeCompare(a.periodKey));
+  return rounds;
+};

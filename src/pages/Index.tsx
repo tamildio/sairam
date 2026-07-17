@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { RentBillForm, BillData } from "@/components/RentBillForm";
 import { RentBillPreview } from "@/components/RentBillPreview";
@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { fetchReceipts, updateReceipt, deleteReceipt, createReceipt, getReceiptsCountForMonth } from "@/lib/api";
+import { fetchReceipts, updateReceipt, deleteReceipt, createReceipt, getReceiptsCountForMonth, computeEbReconciliation } from "@/lib/api";
 import { format } from "date-fns";
 
 interface ReceiptRecord {
@@ -23,6 +23,7 @@ interface ReceiptRecord {
   record_type: "receipt" | "eb_bill_paid" | "eb_bill_aggregate" | "eb_used_aggregate";
   eb_reading_last_month: number;
   eb_reading_this_month: number;
+  eb_rate_per_unit: number;
   units_consumed: number;
   eb_charges: number;
   rent_amount: number;
@@ -73,6 +74,8 @@ const Index = () => {
     receiptNo: "",
   });
   const navigate = useNavigate();
+
+  const ebReconciliation = useMemo(() => computeEbReconciliation(receipts), [receipts]);
 
   const handleGenerate = (data: BillData, id: string) => {
     console.log("🎯 handleGenerate called with:", { data, id });
@@ -456,6 +459,42 @@ const Index = () => {
                     Record EB Bill Payment
                   </Button>
                 </div>
+
+                {ebReconciliation.length > 0 && (
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                      EB Reconciliation
+                    </h3>
+                    {ebReconciliation.map((round) => (
+                      <Card key={round.periodKey} className="p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="font-semibold">
+                            {format(new Date(`${round.periodKey}-01`), 'MMMM yyyy')}
+                          </h4>
+                          <Badge variant="secondary">
+                            {round.billCount} bill{round.billCount !== 1 ? 's' : ''}
+                          </Badge>
+                        </div>
+                        <div className="grid grid-cols-3 gap-3 text-sm">
+                          <div>
+                            <p className="text-muted-foreground">Paid to EB</p>
+                            <p className="font-medium">₹{round.totalPaid.toFixed(2)}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Charged to Tenants</p>
+                            <p className="font-medium">₹{round.totalCharged.toFixed(2)}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Difference</p>
+                            <p className={`font-semibold ${round.variance > 0 ? 'text-red-600' : round.variance < 0 ? 'text-green-600' : ''}`}>
+                              {round.variance > 0 ? '+' : ''}₹{round.variance.toFixed(2)}
+                            </p>
+                          </div>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                )}
 
                 {loading ? (
                 <Card className="p-6">
