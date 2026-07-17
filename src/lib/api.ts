@@ -306,19 +306,35 @@ export const computeEbReconciliation = (receipts: ReconciliationInput[]): EbReco
     };
   });
 
+  // Bills always land in an odd-numbered month, covering that month plus the
+  // even-numbered month before it. So an uncovered even month belongs to the
+  // same upcoming (not-yet-billed) round as the odd month right after it.
+  const upcomingRoundKeyFor = (year: number, month: number) => {
+    if (month % 2 === 1) return `${year}-${month.toString().padStart(2, "0")}`;
+    const next = new Date(year, month, 1); // month is 1-indexed here, so this is next month
+    return `${next.getFullYear()}-${(next.getMonth() + 1).toString().padStart(2, "0")}`;
+  };
+
   // Months already charged to tenants but not yet claimed by any bill's window -
-  // the EB bill for that period just hasn't arrived yet.
+  // the EB bill for that period just hasn't arrived yet. Grouped into the same
+  // 2-month window a real bill for that period would eventually cover.
+  const pendingByRound = new Map<string, number>();
   usedByMonth.forEach((amount, key) => {
-    if (!coveredMonths.has(key)) {
-      rounds.push({
-        periodKey: key,
-        billCount: 0,
-        totalPaid: 0,
-        totalCharged: amount,
-        variance: -amount,
-        isPending: true,
-      });
-    }
+    if (coveredMonths.has(key)) return;
+    const [year, month] = key.split("-").map(Number);
+    const roundKey = upcomingRoundKeyFor(year, month);
+    pendingByRound.set(roundKey, (pendingByRound.get(roundKey) || 0) + amount);
+  });
+
+  pendingByRound.forEach((amount, key) => {
+    rounds.push({
+      periodKey: key,
+      billCount: 0,
+      totalPaid: 0,
+      totalCharged: amount,
+      variance: -amount,
+      isPending: true,
+    });
   });
 
   rounds.sort((a, b) => b.periodKey.localeCompare(a.periodKey));
