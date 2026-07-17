@@ -249,10 +249,11 @@ export const getReceiptsCountForMonth = async (receiptDate: string) => {
 
 export interface EbReconciliationRound {
   periodKey: string; // YYYY-MM of the billing round
-  billCount: number; // how many of the EB services reported a bill this round
+  billCount: number; // how many of the EB services reported a bill this round (0 if pending)
   totalPaid: number; // sum of all EB service bills for this round
   totalCharged: number; // sum of Tenant EB Used for the 2 calendar months this round covers
   variance: number; // totalPaid - totalCharged (positive = paid more than collected from tenants)
+  isPending: boolean; // true if tenants have been charged but no EB bill has arrived yet
 }
 
 type ReconciliationInput = Pick<ReceiptRecord, "record_type" | "receipt_date" | "total_amount">;
@@ -283,12 +284,16 @@ export const computeEbReconciliation = (receipts: ReconciliationInput[]): EbReco
     billsByMonth.get(key)!.push(r);
   });
 
+  const coveredMonths = new Set<string>();
+
   const rounds: EbReconciliationRound[] = Array.from(billsByMonth.entries()).map(([key, bills]) => {
     const [year, month] = key.split("-").map(Number);
     const totalPaid = bills.reduce((sum, b) => sum + b.total_amount, 0);
 
     const prevDate = new Date(year, month - 2, 1); // the calendar month before this round
     const prevKey = `${prevDate.getFullYear()}-${(prevDate.getMonth() + 1).toString().padStart(2, "0")}`;
+    coveredMonths.add(key);
+    coveredMonths.add(prevKey);
     const totalCharged = (usedByMonth.get(key) || 0) + (usedByMonth.get(prevKey) || 0);
 
     return {
@@ -297,7 +302,23 @@ export const computeEbReconciliation = (receipts: ReconciliationInput[]): EbReco
       totalPaid,
       totalCharged,
       variance: totalPaid - totalCharged,
+      isPending: false,
     };
+  });
+
+  // Months already charged to tenants but not yet claimed by any bill's window -
+  // the EB bill for that period just hasn't arrived yet.
+  usedByMonth.forEach((amount, key) => {
+    if (!coveredMonths.has(key)) {
+      rounds.push({
+        periodKey: key,
+        billCount: 0,
+        totalPaid: 0,
+        totalCharged: amount,
+        variance: -amount,
+        isPending: true,
+      });
+    }
   });
 
   rounds.sort((a, b) => b.periodKey.localeCompare(a.periodKey));

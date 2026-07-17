@@ -466,29 +466,39 @@ const Index = () => {
                       EB Reconciliation
                     </h3>
                     {ebReconciliation.map((round) => (
-                      <Card key={round.periodKey} className="p-4">
+                      <Card key={round.periodKey} className={`p-4 ${round.isPending ? 'border-dashed' : ''}`}>
                         <div className="flex items-center justify-between mb-3">
                           <h4 className="font-semibold">
                             {format(new Date(`${round.periodKey}-01`), 'MMMM yyyy')}
                           </h4>
                           <Badge variant="secondary">
-                            {round.billCount} bill{round.billCount !== 1 ? 's' : ''}
+                            {round.isPending
+                              ? "Awaiting bill"
+                              : `${round.billCount} bill${round.billCount !== 1 ? 's' : ''}`}
                           </Badge>
                         </div>
                         <div className="grid grid-cols-3 gap-3 text-sm">
                           <div>
                             <p className="text-muted-foreground">Paid to EB</p>
-                            <p className="font-medium">₹{round.totalPaid.toFixed(2)}</p>
+                            <p className="font-medium">
+                              {round.isPending ? "—" : `₹${round.totalPaid.toFixed(2)}`}
+                            </p>
                           </div>
                           <div>
                             <p className="text-muted-foreground">Charged to Tenants</p>
                             <p className="font-medium">₹{round.totalCharged.toFixed(2)}</p>
                           </div>
                           <div>
-                            <p className="text-muted-foreground">Difference</p>
-                            <p className={`font-semibold ${round.variance > 0 ? 'text-red-600' : round.variance < 0 ? 'text-green-600' : ''}`}>
-                              {round.variance > 0 ? '+' : ''}₹{round.variance.toFixed(2)}
+                            <p className="text-muted-foreground">
+                              {round.isPending ? "Charged So Far" : "Difference"}
                             </p>
+                            {round.isPending ? (
+                              <p className="font-semibold">₹{round.totalCharged.toFixed(2)}</p>
+                            ) : (
+                              <p className={`font-semibold ${round.variance > 0 ? 'text-red-600' : round.variance < 0 ? 'text-green-600' : ''}`}>
+                                {round.variance > 0 ? '+' : ''}₹{round.variance.toFixed(2)}
+                              </p>
+                            )}
                           </div>
                         </div>
                       </Card>
