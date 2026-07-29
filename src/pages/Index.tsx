@@ -735,33 +735,29 @@ const Index = () => {
             </div>
 
             <p className="text-xs text-muted-foreground">
-              Both dates apply to every service below. Leave a service's fields blank to skip it for this round.
+              Both dates apply to every service below. Leave a row blank to skip it for this round.
             </p>
 
-            {ebPaymentModal.services.map((service, index) => (
-              <div key={index} className="space-y-3 rounded-lg border p-3">
-                <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Cons Number</p>
-                  <p className="text-sm font-medium">{service.consumerNumber}</p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label htmlFor={`unitsConsumed-${index}`}>Units Consumed</Label>
+            <div className="rounded-lg border">
+              <div className="grid grid-cols-[1fr_1fr_1fr] gap-2 px-3 py-2 text-xs text-muted-foreground uppercase tracking-wide border-b">
+                <span>Cons Number</span>
+                <span>Units</span>
+                <span>Amount (₹)</span>
+              </div>
+              <div className="divide-y">
+                {ebPaymentModal.services.map((service, index) => (
+                  <div key={index} className="grid grid-cols-[1fr_1fr_1fr] gap-2 p-3 items-center">
+                    <p className="text-sm font-medium">{service.consumerNumber}</p>
                     <Input
-                      id={`unitsConsumed-${index}`}
+                      aria-label={`Units consumed for ${service.consumerNumber}`}
                       type="number"
                       step="0.01"
                       placeholder="Units"
                       value={service.unitsConsumed}
                       onChange={(e) => handleEbServiceChange(index, "unitsConsumed", e.target.value)}
                     />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor={`ebAmount-${index}`}>EB Amount (₹)</Label>
                     <Input
-                      id={`ebAmount-${index}`}
+                      aria-label={`EB amount for ${service.consumerNumber}`}
                       type="number"
                       step="0.01"
                       placeholder="Amount"
@@ -769,9 +765,9 @@ const Index = () => {
                       onChange={(e) => handleEbServiceChange(index, "ebAmount", e.target.value)}
                     />
                   </div>
-                </div>
+                ))}
               </div>
-            ))}
+            </div>
           </div>
 
           <DialogFooter>
