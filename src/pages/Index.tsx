@@ -57,6 +57,8 @@ const Index = () => {
   const [selectedReceipt, setSelectedReceipt] = useState<ReceiptRecord | null>(null);
   const [selectedEbBill, setSelectedEbBill] = useState<ReceiptRecord | null>(null);
   const [selectedEbRound, setSelectedEbRound] = useState<EbReconciliationRound | null>(null);
+  const EB_RECONCILIATION_PAGE_SIZE = 4;
+  const [ebReconciliationVisibleCount, setEbReconciliationVisibleCount] = useState(EB_RECONCILIATION_PAGE_SIZE);
   // The 3 fixed EB service connections for the house - not user-editable.
   const EB_CONSUMER_NUMBERS = ["09270003185", "092700031893", "09270003636"];
 
@@ -568,7 +570,7 @@ const Index = () => {
                     <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
                       EB Reconciliation
                     </h3>
-                    {ebReconciliation.map((round) => (
+                    {ebReconciliation.slice(0, ebReconciliationVisibleCount).map((round) => (
                       <Card
                         key={round.periodKey}
                         className={`p-4 cursor-pointer hover:shadow-md transition-shadow ${round.isPending ? 'border-dashed' : ''}`}
@@ -610,6 +612,15 @@ const Index = () => {
                         </div>
                       </Card>
                     ))}
+                    {ebReconciliationVisibleCount < ebReconciliation.length && (
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => setEbReconciliationVisibleCount(prev => prev + EB_RECONCILIATION_PAGE_SIZE)}
+                      >
+                        Show more
+                      </Button>
+                    )}
                   </div>
                 )}
 
