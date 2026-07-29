@@ -57,22 +57,22 @@ const Index = () => {
   const [selectedReceipt, setSelectedReceipt] = useState<ReceiptRecord | null>(null);
   const [selectedEbBill, setSelectedEbBill] = useState<ReceiptRecord | null>(null);
   const [selectedEbRound, setSelectedEbRound] = useState<EbReconciliationRound | null>(null);
+  // The 3 fixed EB service connections for the house - not user-editable.
+  const EB_CONSUMER_NUMBERS = ["09270003185", "092700031893", "09270003636"];
+
+  const defaultEbServices = () =>
+    EB_CONSUMER_NUMBERS.map(consumerNumber => ({ consumerNumber, unitsConsumed: "", ebAmount: "" }));
+
   const [ebPaymentModal, setEbPaymentModal] = useState<{
     isOpen: boolean;
-    ebAmount: string;
-    unitsConsumed: string;
     paymentDate: string;
     unitsRecordedDate: string;
-    consumerNumber: string;
-    receiptNo: string;
+    services: { consumerNumber: string; unitsConsumed: string; ebAmount: string }[];
   }>({
     isOpen: false,
-    ebAmount: "",
-    unitsConsumed: "",
     paymentDate: "",
     unitsRecordedDate: "",
-    consumerNumber: "",
-    receiptNo: "",
+    services: defaultEbServices(),
   });
   const navigate = useNavigate();
 
@@ -183,64 +183,71 @@ const Index = () => {
     const today = new Date().toISOString().split('T')[0];
     setEbPaymentModal({
       isOpen: true,
-      ebAmount: "",
-      unitsConsumed: "",
       paymentDate: today,
       unitsRecordedDate: today,
-      consumerNumber: "",
-      receiptNo: "",
+      services: defaultEbServices(),
     });
   };
 
+  const handleEbServiceChange = (index: number, field: "unitsConsumed" | "ebAmount", value: string) => {
+    setEbPaymentModal(prev => ({
+      ...prev,
+      services: prev.services.map((s, i) => (i === index ? { ...s, [field]: value } : s)),
+    }));
+  };
+
   const handleEbPaymentConfirm = async () => {
-    const ebAmount = parseFloat(ebPaymentModal.ebAmount);
-    const unitsConsumed = parseFloat(ebPaymentModal.unitsConsumed);
-
-    if (isNaN(ebAmount) || isNaN(unitsConsumed) || ebAmount <= 0 || unitsConsumed <= 0) {
-      toast.error("Please enter valid EB amount and units consumed");
-      return;
-    }
-
     if (!ebPaymentModal.paymentDate || !ebPaymentModal.unitsRecordedDate) {
       toast.error("Please select both payment date and units recorded date");
       return;
     }
 
-    if (!ebPaymentModal.consumerNumber.trim()) {
-      toast.error("Please enter the EB consumer number for this bill");
+    // A service with both fields left blank had no bill this round - skip it.
+    const filledServices = ebPaymentModal.services.filter(s => s.unitsConsumed.trim() || s.ebAmount.trim());
+
+    if (filledServices.length === 0) {
+      toast.error("Please enter units consumed and EB amount for at least one service");
       return;
     }
 
-    try {
-      // Create a special receipt for EB bill payment
-      const ebReceipt = {
-        receipt_date: ebPaymentModal.unitsRecordedDate, // Use units recorded date
-        tenant_name: "EB bill paid",
-        record_type: "eb_bill_paid" as const,
-        eb_reading_last_month: 0,
-        eb_reading_this_month: unitsConsumed,
-        units_consumed: unitsConsumed,
-        eb_rate_per_unit: ebAmount / unitsConsumed, // Calculate rate per unit
-        eb_charges: ebAmount,
-        rent_amount: 0,
-        total_amount: ebAmount,
-        received_date: ebPaymentModal.paymentDate, // Use payment date
-        payment_mode: "manual",
-        consumer_number: ebPaymentModal.consumerNumber.trim(),
-        receipt_no: ebPaymentModal.receiptNo.trim() || null,
-      };
+    for (const service of filledServices) {
+      const ebAmount = parseFloat(service.ebAmount);
+      const unitsConsumed = parseFloat(service.unitsConsumed);
+      if (isNaN(ebAmount) || isNaN(unitsConsumed) || ebAmount < 0 || unitsConsumed < 0) {
+        toast.error(`Please enter valid units consumed and EB amount for ${service.consumerNumber}`);
+        return;
+      }
+    }
 
-      await createReceipt(ebReceipt);
-      toast.success("EB bill payment recorded successfully!");
+    try {
+      for (const service of filledServices) {
+        const ebAmount = parseFloat(service.ebAmount);
+        const unitsConsumed = parseFloat(service.unitsConsumed);
+        const ebReceipt = {
+          receipt_date: ebPaymentModal.unitsRecordedDate, // Use units recorded date
+          tenant_name: "EB bill paid",
+          record_type: "eb_bill_paid" as const,
+          eb_reading_last_month: 0,
+          eb_reading_this_month: unitsConsumed,
+          units_consumed: unitsConsumed,
+          eb_rate_per_unit: unitsConsumed > 0 ? ebAmount / unitsConsumed : 0,
+          eb_charges: ebAmount,
+          rent_amount: 0,
+          total_amount: ebAmount,
+          received_date: ebPaymentModal.paymentDate, // Use payment date
+          payment_mode: "manual",
+          consumer_number: service.consumerNumber,
+        };
+        await createReceipt(ebReceipt);
+      }
+
+      toast.success(`Recorded ${filledServices.length} EB bill payment${filledServices.length !== 1 ? 's' : ''} successfully!`);
       loadReceipts();
       setEbPaymentModal({
         isOpen: false,
-        ebAmount: "",
-        unitsConsumed: "",
         paymentDate: "",
         unitsRecordedDate: "",
-        consumerNumber: "",
-        receiptNo: "",
+        services: defaultEbServices(),
       });
     } catch (error) {
       toast.error("Failed to record EB bill payment");
@@ -250,12 +257,9 @@ const Index = () => {
   const handleEbPaymentModalClose = () => {
     setEbPaymentModal({
       isOpen: false,
-      ebAmount: "",
-      unitsConsumed: "",
       paymentDate: "",
       unitsRecordedDate: "",
-      consumerNumber: "",
-      receiptNo: "",
+      services: defaultEbServices(),
     });
   };
 
@@ -702,75 +706,72 @@ const Index = () => {
 
       {/* EB Payment Modal */}
       <Dialog open={ebPaymentModal.isOpen} onOpenChange={handleEbPaymentModalClose}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Record EB Bill Payment (Bi-monthly)</DialogTitle>
           </DialogHeader>
-          
+
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="consumerNumber">EB Consumer Number</Label>
-              <Input
-                id="consumerNumber"
-                placeholder="e.g. 09270003185"
-                value={ebPaymentModal.consumerNumber}
-                onChange={(e) => setEbPaymentModal(prev => ({ ...prev, consumerNumber: e.target.value }))}
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="unitsRecordedDate">Units Recorded Date</Label>
+                <Input
+                  id="unitsRecordedDate"
+                  type="date"
+                  value={ebPaymentModal.unitsRecordedDate}
+                  onChange={(e) => setEbPaymentModal(prev => ({ ...prev, unitsRecordedDate: e.target.value }))}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="paymentDate">Payment Date</Label>
+                <Input
+                  id="paymentDate"
+                  type="date"
+                  value={ebPaymentModal.paymentDate}
+                  onChange={(e) => setEbPaymentModal(prev => ({ ...prev, paymentDate: e.target.value }))}
+                />
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="unitsRecordedDate">Units Recorded Date</Label>
-              <Input
-                id="unitsRecordedDate"
-                type="date"
-                value={ebPaymentModal.unitsRecordedDate}
-                onChange={(e) => setEbPaymentModal(prev => ({ ...prev, unitsRecordedDate: e.target.value }))}
-              />
-            </div>
+            <p className="text-xs text-muted-foreground">
+              Both dates apply to every service below. Leave a service's fields blank to skip it for this round.
+            </p>
 
-            <div className="space-y-2">
-              <Label htmlFor="paymentDate">Payment Date</Label>
-              <Input
-                id="paymentDate"
-                type="date"
-                value={ebPaymentModal.paymentDate}
-                onChange={(e) => setEbPaymentModal(prev => ({ ...prev, paymentDate: e.target.value }))}
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="unitsConsumed">Units Consumed</Label>
-              <Input
-                id="unitsConsumed"
-                type="number"
-                step="0.01"
-                placeholder="Enter units consumed"
-                value={ebPaymentModal.unitsConsumed}
-                onChange={(e) => setEbPaymentModal(prev => ({ ...prev, unitsConsumed: e.target.value }))}
-              />
-            </div>
+            {ebPaymentModal.services.map((service, index) => (
+              <div key={index} className="space-y-3 rounded-lg border p-3">
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Cons Number</p>
+                  <p className="text-sm font-medium">{service.consumerNumber}</p>
+                </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="ebAmount">EB Amount (₹)</Label>
-              <Input
-                id="ebAmount"
-                type="number"
-                step="0.01"
-                placeholder="Enter EB amount"
-                value={ebPaymentModal.ebAmount}
-                onChange={(e) => setEbPaymentModal(prev => ({ ...prev, ebAmount: e.target.value }))}
-              />
-            </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor={`unitsConsumed-${index}`}>Units Consumed</Label>
+                    <Input
+                      id={`unitsConsumed-${index}`}
+                      type="number"
+                      step="0.01"
+                      placeholder="Units"
+                      value={service.unitsConsumed}
+                      onChange={(e) => handleEbServiceChange(index, "unitsConsumed", e.target.value)}
+                    />
+                  </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="receiptNo">Receipt No (optional)</Label>
-              <Input
-                id="receiptNo"
-                placeholder="e.g. PGIBP1871341798"
-                value={ebPaymentModal.receiptNo}
-                onChange={(e) => setEbPaymentModal(prev => ({ ...prev, receiptNo: e.target.value }))}
-              />
-            </div>
+                  <div className="space-y-2">
+                    <Label htmlFor={`ebAmount-${index}`}>EB Amount (₹)</Label>
+                    <Input
+                      id={`ebAmount-${index}`}
+                      type="number"
+                      step="0.01"
+                      placeholder="Amount"
+                      value={service.ebAmount}
+                      onChange={(e) => handleEbServiceChange(index, "ebAmount", e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
 
           <DialogFooter>
@@ -778,7 +779,7 @@ const Index = () => {
               Cancel
             </Button>
             <Button onClick={handleEbPaymentConfirm}>
-              Record Payment
+              Record Payment{ebPaymentModal.services.filter(s => s.unitsConsumed.trim() || s.ebAmount.trim()).length > 1 ? "s" : ""}
             </Button>
           </DialogFooter>
         </DialogContent>
