@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -6,7 +6,6 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { RentBillPreview } from "@/components/RentBillPreview";
 import { BillData } from "@/components/RentBillForm";
 import { Trash2, Receipt } from "lucide-react";
-import { getReceiptsCountForMonth } from "@/lib/api";
 
 interface ReceiptRecord {
   id: string;
@@ -32,28 +31,20 @@ interface ReceiptDetailViewProps {
   onBack: () => void;
   onDelete: (receiptId: string) => void;
   onRecordPayment?: (receiptId: string, tenantName: string, totalAmount: number) => void;
+  // For eb_used_aggregate receipts: how many tenant receipts fed into the total.
+  // Passed in by the parent (which already has the receipts list loaded) so this
+  // component doesn't need its own API call.
+  receiptsCount?: number | null;
 }
 
-export const ReceiptDetailView = ({ 
-  receipt, 
-  onBack, 
+export const ReceiptDetailView = ({
+  receipt,
+  onBack,
   onDelete,
-  onRecordPayment
+  onRecordPayment,
+  receiptsCount = null,
 }: ReceiptDetailViewProps) => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [receiptsCount, setReceiptsCount] = useState<number | null>(null);
-
-  // Calculate receipts count for Tenant EB Used records
-  useEffect(() => {
-    if (receipt?.record_type === 'eb_used_aggregate') {
-      getReceiptsCountForMonth(receipt.receipt_date)
-        .then(count => setReceiptsCount(count))
-        .catch(error => {
-          console.error('Error calculating receipts count:', error);
-          setReceiptsCount(0);
-        });
-    }
-  }, [receipt]);
 
   if (!receipt) return null;
 

@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { fetchReceipts, updateReceipt, deleteReceipt, createReceipt, getReceiptsCountForMonth, computeEbReconciliation, EbReconciliationRound } from "@/lib/api";
+import { fetchReceipts, updateReceipt, deleteReceipt, createReceipt, countReceiptsForMonth, computeEbReconciliation, EbReconciliationRound } from "@/lib/api";
 import { format } from "date-fns";
 
 interface ReceiptRecord {
@@ -42,7 +42,6 @@ const Index = () => {
   const [showBill, setShowBill] = useState(false);
   const [receipts, setReceipts] = useState<ReceiptRecord[]>([]);
   const [loading, setLoading] = useState(false);
-  const [receiptsCountMap, setReceiptsCountMap] = useState<Record<string, number>>({});
   const [paymentModal, setPaymentModal] = useState<{
     isOpen: boolean;
     receiptId: string | null;
@@ -272,27 +271,6 @@ const Index = () => {
     loadReceipts();
   }, []);
 
-  // Calculate receipts count for Tenant EB Used records
-  useEffect(() => {
-    const tenantEbUsedReceipts = receipts.filter(receipt => receipt.record_type === 'eb_used_aggregate');
-    
-    tenantEbUsedReceipts.forEach(async (receipt) => {
-      try {
-        const count = await getReceiptsCountForMonth(receipt.receipt_date);
-        setReceiptsCountMap(prev => ({
-          ...prev,
-          [receipt.id]: count
-        }));
-      } catch (error) {
-        console.error('Error calculating receipts count for', receipt.id, error);
-        setReceiptsCountMap(prev => ({
-          ...prev,
-          [receipt.id]: 0
-        }));
-      }
-    });
-  }, [receipts]);
-
 
   return (
     <div className="min-h-screen bg-background">
@@ -455,6 +433,7 @@ const Index = () => {
                   onBack={handleBackToEbBills}
                   onDelete={handleDeleteReceipt}
                   onRecordPayment={handleRecordPayment}
+                  receiptsCount={selectedEbBill.receipts_count ?? countReceiptsForMonth(receipts, selectedEbBill.receipt_date)}
                 />
               </div>
             ) : selectedEbRound ? (
@@ -674,7 +653,7 @@ const Index = () => {
                               </div>
                               <div>
                                 <p className="text-muted-foreground">Receipts Count</p>
-                                <p className="font-medium">{receiptsCountMap[receipt.id] ?? 'Calculating...'}</p>
+                                <p className="font-medium">{receipt.receipts_count ?? countReceiptsForMonth(receipts, receipt.receipt_date)}</p>
                               </div>
                             </div>
                           ) : (
