@@ -64,6 +64,7 @@ const Index = () => {
   const defaultEbServices = () =>
     EB_CONSUMER_NUMBERS.map(consumerNumber => ({ consumerNumber, unitsConsumed: "", ebAmount: "" }));
 
+  const [isSavingEbPayment, setIsSavingEbPayment] = useState(false);
   const [ebPaymentModal, setEbPaymentModal] = useState<{
     isOpen: boolean;
     paymentDate: string;
@@ -198,6 +199,7 @@ const Index = () => {
   };
 
   const handleEbPaymentConfirm = async () => {
+    if (isSavingEbPayment) return;
     if (!ebPaymentModal.paymentDate || !ebPaymentModal.unitsRecordedDate) {
       toast.error("Please select both payment date and units recorded date");
       return;
@@ -220,6 +222,21 @@ const Index = () => {
       }
     }
 
+    // Guard against re-recording a bill that's already saved for the same month.
+    const recordedMonth = ebPaymentModal.unitsRecordedDate.slice(0, 7);
+    const alreadyRecorded = filledServices.find(service =>
+      receipts.some(r =>
+        r.record_type === "eb_bill_paid" &&
+        r.consumer_number === service.consumerNumber &&
+        r.receipt_date.slice(0, 7) === recordedMonth
+      )
+    );
+    if (alreadyRecorded) {
+      toast.error(`A payment for ${alreadyRecorded.consumerNumber} is already recorded for this month`);
+      return;
+    }
+
+    setIsSavingEbPayment(true);
     try {
       for (const service of filledServices) {
         const ebAmount = parseFloat(service.ebAmount);
@@ -252,6 +269,9 @@ const Index = () => {
       });
     } catch (error) {
       toast.error("Failed to record EB bill payment");
+      loadReceipts();
+    } finally {
+      setIsSavingEbPayment(false);
     }
   };
 
@@ -764,8 +784,10 @@ const Index = () => {
             <Button variant="outline" onClick={handleEbPaymentModalClose}>
               Cancel
             </Button>
-            <Button onClick={handleEbPaymentConfirm}>
-              Record Payment{ebPaymentModal.services.filter(s => s.unitsConsumed.trim() || s.ebAmount.trim()).length > 1 ? "s" : ""}
+            <Button onClick={handleEbPaymentConfirm} disabled={isSavingEbPayment}>
+              {isSavingEbPayment
+                ? "Saving..."
+                : `Record Payment${ebPaymentModal.services.filter(s => s.unitsConsumed.trim() || s.ebAmount.trim()).length > 1 ? "s" : ""}`}
             </Button>
           </DialogFooter>
         </DialogContent>
