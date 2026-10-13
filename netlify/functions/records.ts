@@ -35,13 +35,39 @@ const toRecord = (r: { id: string; fields: Record<string, unknown>; createdTime:
   ...r.fields,
 });
 
-// Fetches every row in the table, following Airtable's 100-record pagination.
-const listAll = async () => {
+const RECORD_TYPES = ["receipt", "eb_bill_paid", "eb_bill_aggregate", "eb_used_aggregate"];
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+// Optional server-side narrowing so the browser doesn't have to download (and
+// Airtable doesn't have to paginate through) the whole table:
+//   types=receipt,eb_bill_paid   since=YYYY-MM-DD   until=YYYY-MM-DD (both inclusive, on receipt_date)
+const buildFilter = (params: Record<string, string | undefined>) => {
+  const clauses: string[] = [];
+
+  const types = params.types?.split(",").filter((t) => RECORD_TYPES.includes(t)) ?? [];
+  if (types.length > 0) {
+    clauses.push(`OR(${types.map((t) => `{record_type}='${t}'`).join(",")})`);
+  }
+  if (params.since && ISO_DATE.test(params.since)) {
+    clauses.push(`NOT(IS_BEFORE({receipt_date},'${params.since}'))`);
+  }
+  if (params.until && ISO_DATE.test(params.until)) {
+    clauses.push(`NOT(IS_AFTER({receipt_date},'${params.until}'))`);
+  }
+
+  return clauses.length > 0 ? `AND(${clauses.join(",")})` : undefined;
+};
+
+// Fetches matching rows, following Airtable's 100-record pagination.
+const listAll = async (filterByFormula?: string) => {
   const records: ReturnType<typeof toRecord>[] = [];
   let offset: string | undefined;
   do {
-    const query = offset ? `?offset=${encodeURIComponent(offset)}` : "";
-    const page = await airtableRequest(query);
+    const query = new URLSearchParams();
+    if (filterByFormula) query.set("filterByFormula", filterByFormula);
+    if (offset) query.set("offset", offset);
+    const qs = query.toString();
+    const page = await airtableRequest(qs ? `?${qs}` : "");
     records.push(...page.records.map(toRecord));
     offset = page.offset;
   } while (offset);
@@ -58,7 +84,7 @@ export const handler: Handler = async (event) => {
           const record = await airtableRequest(`/${id}`);
           return { statusCode: 200, body: JSON.stringify(toRecord(record)) };
         }
-        const records = await listAll();
+        const records = await listAll(buildFilter(event.queryStringParameters ?? {}));
         return { statusCode: 200, body: JSON.stringify(records) };
       }
 

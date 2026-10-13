@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { fetchReceipts, updateReceipt, deleteReceipt, createReceipt, countReceiptsForMonth, computeEbReconciliation, EbReconciliationRound } from "@/lib/api";
+import { fetchRecentTenantReceipts, fetchRecentEbRecords, monthsAgoStart, updateReceipt, deleteReceipt, createReceipt, countReceiptsForMonth, computeEbReconciliation, EbReconciliationRound } from "@/lib/api";
 import { format } from "date-fns";
 
 interface ReceiptRecord {
@@ -56,8 +56,15 @@ const Index = () => {
   const [selectedReceipt, setSelectedReceipt] = useState<ReceiptRecord | null>(null);
   const [selectedEbBill, setSelectedEbBill] = useState<ReceiptRecord | null>(null);
   const [selectedEbRound, setSelectedEbRound] = useState<EbReconciliationRound | null>(null);
-  const EB_RECONCILIATION_PAGE_SIZE = 4;
-  const [ebReconciliationVisibleCount, setEbReconciliationVisibleCount] = useState(EB_RECONCILIATION_PAGE_SIZE);
+  // Only recent data is loaded up front to keep page loads fast; "load more" widens the window.
+  const RECEIPTS_MONTHS_STEP = 2;
+  const EB_MONTHS_STEP = 8; // ~4 bi-monthly reconciliation rounds
+  const [receiptsMonths, setReceiptsMonths] = useState(RECEIPTS_MONTHS_STEP);
+  const [receiptsHasMore, setReceiptsHasMore] = useState(true);
+  const [ebRecords, setEbRecords] = useState<ReceiptRecord[]>([]);
+  const [ebMonths, setEbMonths] = useState(EB_MONTHS_STEP);
+  const [ebHasMore, setEbHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState<"receipts" | "eb" | null>(null);
   // The 3 fixed EB service connections for the house - not user-editable.
   const EB_CONSUMER_NUMBERS = ["09270003185", "092700031893", "09270003636"];
 
@@ -78,7 +85,13 @@ const Index = () => {
   });
   const navigate = useNavigate();
 
-  const ebReconciliation = useMemo(() => computeEbReconciliation(receipts), [receipts]);
+  // A round covers its billing month plus the month before it. The oldest loaded month
+  // can't be fully reconciled (its neighbour isn't loaded), so rounds are only shown
+  // once both of their months are inside the loaded window.
+  const ebReconciliation = useMemo(() => {
+    const oldestLoadedMonth = monthsAgoStart(ebMonths - 1).slice(0, 7);
+    return computeEbReconciliation(ebRecords).filter((round) => round.periodKey > oldestLoadedMonth);
+  }, [ebRecords, ebMonths]);
 
   const handleGenerate = (data: BillData, id: string) => {
     console.log("🎯 handleGenerate called with:", { data, id });
@@ -112,12 +125,46 @@ const Index = () => {
   const loadReceipts = async () => {
     setLoading(true);
     try {
-      const data = await fetchReceipts();
-      setReceipts(data || []);
+      const [recent, eb] = await Promise.all([
+        fetchRecentTenantReceipts(receiptsMonths),
+        fetchRecentEbRecords(ebMonths),
+      ]);
+      setReceipts(recent);
+      setEbRecords(eb);
     } catch (error) {
       // Error handled by API layer
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleLoadMoreReceipts = async () => {
+    const nextMonths = receiptsMonths + RECEIPTS_MONTHS_STEP;
+    setLoadingMore("receipts");
+    try {
+      const older = await fetchRecentTenantReceipts(nextMonths);
+      setReceiptsHasMore(older.length > receipts.length);
+      setReceipts(older);
+      setReceiptsMonths(nextMonths);
+    } catch (error) {
+      toast.error("Failed to load older receipts");
+    } finally {
+      setLoadingMore(null);
+    }
+  };
+
+  const handleLoadMoreEb = async () => {
+    const nextMonths = ebMonths + EB_MONTHS_STEP;
+    setLoadingMore("eb");
+    try {
+      const older = await fetchRecentEbRecords(nextMonths);
+      setEbHasMore(older.length > ebRecords.length);
+      setEbRecords(older);
+      setEbMonths(nextMonths);
+    } catch (error) {
+      toast.error("Failed to load older EB records");
+    } finally {
+      setLoadingMore(null);
     }
   };
 
@@ -225,7 +272,7 @@ const Index = () => {
     // Guard against re-recording a bill that's already saved for the same month.
     const recordedMonth = ebPaymentModal.unitsRecordedDate.slice(0, 7);
     const alreadyRecorded = filledServices.find(service =>
-      receipts.some(r =>
+      ebRecords.some(r =>
         r.record_type === "eb_bill_paid" &&
         r.consumer_number === service.consumerNumber &&
         r.receipt_date.slice(0, 7) === recordedMonth
@@ -435,6 +482,16 @@ const Index = () => {
                     </Card>
                   ))
                 )}
+                {!loading && receiptsHasMore && (
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    disabled={loadingMore === "receipts"}
+                    onClick={handleLoadMoreReceipts}
+                  >
+                    {loadingMore === "receipts" ? "Loading..." : "Load older receipts"}
+                  </Button>
+                )}
               </div>
             )}
           </TabsContent>
@@ -453,7 +510,7 @@ const Index = () => {
                   onBack={handleBackToEbBills}
                   onDelete={handleDeleteReceipt}
                   onRecordPayment={handleRecordPayment}
-                  receiptsCount={selectedEbBill.receipts_count ?? countReceiptsForMonth(receipts, selectedEbBill.receipt_date)}
+                  receiptsCount={selectedEbBill.receipts_count ?? countReceiptsForMonth(ebRecords, selectedEbBill.receipt_date)}
                 />
               </div>
             ) : selectedEbRound ? (
@@ -569,7 +626,7 @@ const Index = () => {
                     <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
                       EB Reconciliation
                     </h3>
-                    {ebReconciliation.slice(0, ebReconciliationVisibleCount).map((round) => (
+                    {ebReconciliation.map((round) => (
                       <Card
                         key={round.periodKey}
                         className={`p-4 cursor-pointer hover:shadow-md transition-shadow ${round.isPending ? 'border-dashed' : ''}`}
@@ -611,13 +668,14 @@ const Index = () => {
                         </div>
                       </Card>
                     ))}
-                    {ebReconciliationVisibleCount < ebReconciliation.length && (
+                    {ebHasMore && (
                       <Button
                         variant="outline"
                         className="w-full"
-                        onClick={() => setEbReconciliationVisibleCount(prev => prev + EB_RECONCILIATION_PAGE_SIZE)}
+                        disabled={loadingMore === "eb"}
+                        onClick={handleLoadMoreEb}
                       >
-                        Show more
+                        {loadingMore === "eb" ? "Loading..." : "Show older records"}
                       </Button>
                     )}
                   </div>
@@ -629,7 +687,7 @@ const Index = () => {
                     <div className="text-muted-foreground">Loading EB data...</div>
                   </div>
                 </Card>
-              ) : receipts.filter(receipt => receipt.record_type === "eb_bill_paid" || receipt.record_type === "eb_used_aggregate").length === 0 ? (
+              ) : ebRecords.filter(receipt => receipt.record_type === "eb_bill_paid" || receipt.record_type === "eb_used_aggregate").length === 0 ? (
                 <Card className="p-6">
                   <div className="text-center py-12">
                     <Receipt className="h-16 w-16 mx-auto mb-4 text-muted-foreground/40" />
@@ -642,7 +700,7 @@ const Index = () => {
               ) : (
                 <div className="space-y-4">
                   {/* Filter EB bills and Tenant EB Used records */}
-                  {receipts
+                  {ebRecords
                     .filter(receipt => receipt.record_type === "eb_bill_paid" || receipt.record_type === "eb_used_aggregate")
                     .sort((a, b) => new Date(b.receipt_date).getTime() - new Date(a.receipt_date).getTime())
                     .map((receipt) => (
@@ -673,7 +731,7 @@ const Index = () => {
                               </div>
                               <div>
                                 <p className="text-muted-foreground">Receipts Count</p>
-                                <p className="font-medium">{receipt.receipts_count ?? countReceiptsForMonth(receipts, receipt.receipt_date)}</p>
+                                <p className="font-medium">{receipt.receipts_count ?? countReceiptsForMonth(ebRecords, receipt.receipt_date)}</p>
                               </div>
                             </div>
                           ) : (

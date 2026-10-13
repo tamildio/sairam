@@ -50,9 +50,13 @@ export interface ReceiptData {
 
 const request = async (
   method: "GET" | "POST" | "PATCH" | "DELETE",
-  { id, body }: { id?: string; body?: unknown } = {}
+  { id, body, query }: { id?: string; body?: unknown; query?: string } = {}
 ) => {
-  const url = id ? `${RECORDS_ENDPOINT}?id=${encodeURIComponent(id)}` : RECORDS_ENDPOINT;
+  const url = id
+    ? `${RECORDS_ENDPOINT}?id=${encodeURIComponent(id)}`
+    : query
+      ? `${RECORDS_ENDPOINT}?${query}`
+      : RECORDS_ENDPOINT;
   const res = await fetch(url, {
     method,
     headers: body ? { "Content-Type": "application/json" } : undefined,
@@ -73,10 +77,23 @@ const request = async (
 // sorting/aggregation logic.
 const isCompleteReceipt = (r: ReceiptRecord) => Boolean(r.record_type && r.receipt_date);
 
-export const listAllReceipts = async (): Promise<ReceiptRecord[]> => {
-  const records = await request("GET");
+export interface ListFilter {
+  types?: RecordType[];
+  since?: string; // YYYY-MM-DD, inclusive, on receipt_date
+  until?: string; // YYYY-MM-DD, inclusive, on receipt_date
+}
+
+export const listReceipts = async (filter: ListFilter = {}): Promise<ReceiptRecord[]> => {
+  const params = new URLSearchParams();
+  if (filter.types?.length) params.set("types", filter.types.join(","));
+  if (filter.since) params.set("since", filter.since);
+  if (filter.until) params.set("until", filter.until);
+  const qs = params.toString();
+  const records = await request("GET", { query: qs });
   return records.filter(isCompleteReceipt);
 };
+
+export const listAllReceipts = (): Promise<ReceiptRecord[]> => listReceipts();
 
 export const getReceiptById = (id: string): Promise<ReceiptRecord> => request("GET", { id });
 

@@ -1,5 +1,6 @@
 import {
   listAllReceipts,
+  listReceipts,
   getReceiptById,
   insertReceipt,
   patchReceipt,
@@ -26,11 +27,23 @@ const monthRange = (receiptDate: string) => {
 const inMonth = (receipt: Pick<ReceiptRecord, "receipt_date">, startDate: string, endDate: string) =>
   receipt.receipt_date >= startDate && receipt.receipt_date <= endDate;
 
+// Only that calendar month's rows are needed to recompute its aggregates.
+const listMonth = (receiptDate: string) => {
+  const { startDate, endDate } = monthRange(receiptDate);
+  return listReceipts({ since: startDate, until: endDate });
+};
+
+// First day (YYYY-MM-DD) of the month `monthsBack` months before the current one.
+export const monthsAgoStart = (monthsBack: number) => {
+  const d = new Date();
+  const start = new Date(d.getFullYear(), d.getMonth() - monthsBack, 1);
+  return `${start.getFullYear()}-${(start.getMonth() + 1).toString().padStart(2, "0")}-01`;
+};
+
 const includedInEbUsed = (receipt: Pick<ReceiptRecord, "include_in_eb_used">) => receipt.include_in_eb_used !== false;
 
 export const fetchReceipts = async (limit?: number, tenant_name?: string) => {
-  const allReceipts = await listAllReceipts();
-  let receipts = allReceipts;
+  let receipts = await listAllReceipts();
 
   if (tenant_name) {
     receipts = receipts.filter((r) => r.tenant_name === tenant_name);
@@ -38,20 +51,30 @@ export const fetchReceipts = async (limit?: number, tenant_name?: string) => {
 
   receipts.sort((a, b) => b.receipt_date.localeCompare(a.receipt_date));
 
-  if (limit) {
-    receipts = receipts.slice(0, limit);
-  }
+  return limit ? receipts.slice(0, limit) : receipts;
+};
 
-  // Ensure all months with tenant receipts have Tenant EB Used records.
-  // Reuses the list already fetched above instead of re-reading the table.
+// Tenant receipts from the current calendar month and the `months - 1` before it.
+export const fetchRecentTenantReceipts = async (months: number) => {
+  const receipts = await listReceipts({ types: ["receipt"], since: monthsAgoStart(months - 1) });
+  return receipts.sort((a, b) => b.receipt_date.localeCompare(a.receipt_date));
+};
+
+// Everything the EB tab needs (tenant receipts, EB payments, monthly aggregates) for the
+// current calendar month and the `months - 1` before it.
+export const fetchRecentEbRecords = async (months: number) => {
+  const records = await listReceipts({ since: monthsAgoStart(months - 1) });
+
+  // Backfill any month that has tenant receipts but no Tenant EB Used record yet.
+  // Only the months inside this window are looked at.
   try {
-    await ensureTenantEbUsedRecords(allReceipts);
+    await ensureTenantEbUsedRecords(records);
   } catch (ensureError) {
     console.error("Error ensuring Tenant EB Used records:", ensureError);
-    // Don't throw - fetching receipts was successful, ensuring records is secondary
+    // Don't throw - fetching succeeded, ensuring records is secondary
   }
 
-  return receipts;
+  return records.sort((a, b) => b.receipt_date.localeCompare(a.receipt_date));
 };
 
 export const createReceipt = async (receipt: ReceiptData) => {
@@ -60,7 +83,7 @@ export const createReceipt = async (receipt: ReceiptData) => {
   // One fresh read (reflecting the new receipt) shared by both aggregate updates,
   // instead of each one re-fetching the whole table independently.
   try {
-    const allReceipts = await listAllReceipts();
+    const allReceipts = await listMonth(receipt.receipt_date);
     await createOrUpdateTenantEbBill(receipt.receipt_date, allReceipts);
     await createOrUpdateTenantEbUsed(receipt.receipt_date, allReceipts);
   } catch (aggregationError) {
@@ -74,7 +97,7 @@ export const updateReceipt = async (id: string, updates: Partial<ReceiptData>) =
   const data = await patchReceipt(id, updates);
 
   try {
-    const allReceipts = await listAllReceipts();
+    const allReceipts = await listMonth(data.receipt_date);
     await createOrUpdateTenantEbBill(data.receipt_date, allReceipts);
     await createOrUpdateTenantEbUsed(data.receipt_date, allReceipts);
   } catch (aggregationError) {
@@ -97,7 +120,7 @@ export const deleteReceipt = async (id: string) => {
   // Recalculate Tenant EB Used for the month, unless the deleted receipt was itself an aggregate/system record
   if (isRealReceipt(receiptToDelete)) {
     try {
-      const allReceipts = await listAllReceipts();
+      const allReceipts = await listMonth(receiptDate);
       await createOrUpdateTenantEbUsed(receiptDate, allReceipts);
     } catch (recalcError) {
       console.error("Error recalculating Tenant EB Used after deletion:", recalcError);
