@@ -48,6 +48,42 @@ export interface ReceiptData {
   receipt_no?: string | null;
 }
 
+// Short-lived browser cache for list reads, so reloads and tab switches don't each cost
+// Airtable API calls. Any write through this client clears it, so this device never
+// shows stale data after its own changes; changes made from another device show up
+// once the entry expires.
+const CACHE_PREFIX = "sairam:list:";
+const CACHE_TTL_MS = 5 * 60 * 1000;
+
+const readCache = (key: string): ReceiptRecord[] | null => {
+  try {
+    const raw = localStorage.getItem(CACHE_PREFIX + key);
+    if (!raw) return null;
+    const { at, records } = JSON.parse(raw);
+    return Date.now() - at < CACHE_TTL_MS ? records : null;
+  } catch {
+    return null;
+  }
+};
+
+const writeCache = (key: string, records: ReceiptRecord[]) => {
+  try {
+    localStorage.setItem(CACHE_PREFIX + key, JSON.stringify({ at: Date.now(), records }));
+  } catch {
+    // Storage full or unavailable - just skip caching.
+  }
+};
+
+export const clearListCache = () => {
+  try {
+    Object.keys(localStorage)
+      .filter((k) => k.startsWith(CACHE_PREFIX))
+      .forEach((k) => localStorage.removeItem(k));
+  } catch {
+    // ignore
+  }
+};
+
 const request = async (
   method: "GET" | "POST" | "PATCH" | "DELETE",
   { id, body, query }: { id?: string; body?: unknown; query?: string } = {}
@@ -67,7 +103,7 @@ const request = async (
     const errorBody = await res.json().catch(() => ({}));
     throw new Error(errorBody?.error || `Request failed (${res.status})`);
   }
-  if (res.status === 200 && method === "DELETE") return res.json();
+  if (method !== "GET") clearListCache();
   return res.json();
 };
 
@@ -89,8 +125,13 @@ export const listReceipts = async (filter: ListFilter = {}): Promise<ReceiptReco
   if (filter.since) params.set("since", filter.since);
   if (filter.until) params.set("until", filter.until);
   const qs = params.toString();
-  const records = await request("GET", { query: qs });
-  return records.filter(isCompleteReceipt);
+
+  const cached = readCache(qs);
+  if (cached) return cached;
+
+  const records: ReceiptRecord[] = (await request("GET", { query: qs })).filter(isCompleteReceipt);
+  writeCache(qs, records);
+  return records;
 };
 
 export const listAllReceipts = (): Promise<ReceiptRecord[]> => listReceipts();

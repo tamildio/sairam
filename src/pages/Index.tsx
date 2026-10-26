@@ -1,8 +1,18 @@
-import { useState, useEffect, useMemo } from "react";
+import { Fragment, useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { RentBillForm, BillData } from "@/components/RentBillForm";
 import { RentBillPreview } from "@/components/RentBillPreview";
 import { PaymentModal } from "@/components/PaymentModal";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { ReceiptDetailView } from "@/components/ReceiptDetailView";
 import { FileText, ArrowLeft, Receipt } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,7 +23,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { fetchRecentTenantReceipts, fetchRecentEbRecords, monthsAgoStart, updateReceipt, deleteReceipt, createReceipt, countReceiptsForMonth, computeEbReconciliation, EbReconciliationRound } from "@/lib/api";
+import { fetchRecentTenantReceipts, fetchRecentEbRecords, monthsAgoStart, updateReceipt, deleteReceipt, createReceipt, computeEbReconciliation, EbReconciliationRound, EbRoundBill } from "@/lib/api";
 import { format } from "date-fns";
 
 interface ReceiptRecord {
@@ -54,13 +64,15 @@ const Index = () => {
     totalAmount: 0,
   });
   const [selectedReceipt, setSelectedReceipt] = useState<ReceiptRecord | null>(null);
-  const [selectedEbBill, setSelectedEbBill] = useState<ReceiptRecord | null>(null);
-  const [selectedEbRound, setSelectedEbRound] = useState<EbReconciliationRound | null>(null);
+  // Stored by key (not by object) so the detail view re-derives from fresh data after a save.
+  const [selectedEbRoundKey, setSelectedEbRoundKey] = useState<string | null>(null);
+  const [unmarkBill, setUnmarkBill] = useState<EbRoundBill | null>(null);
   // Only recent data is loaded up front to keep page loads fast; "load more" widens the window.
   const RECEIPTS_MONTHS_STEP = 2;
   const EB_MONTHS_STEP = 8; // ~4 bi-monthly reconciliation rounds
   const [receiptsMonths, setReceiptsMonths] = useState(RECEIPTS_MONTHS_STEP);
   const [receiptsHasMore, setReceiptsHasMore] = useState(true);
+  const [receiptsVisibleMonths, setReceiptsVisibleMonths] = useState(1); // Receipts tab starts with one month
   const [ebRecords, setEbRecords] = useState<ReceiptRecord[]>([]);
   const [ebMonths, setEbMonths] = useState(EB_MONTHS_STEP);
   const [ebHasMore, setEbHasMore] = useState(true);
@@ -92,6 +104,27 @@ const Index = () => {
     const oldestLoadedMonth = monthsAgoStart(ebMonths - 1).slice(0, 7);
     return computeEbReconciliation(ebRecords).filter((round) => round.periodKey > oldestLoadedMonth);
   }, [ebRecords, ebMonths]);
+
+  const selectedEbRound = useMemo(
+    () => ebReconciliation.find((r) => r.periodKey === selectedEbRoundKey) ?? null,
+    [ebReconciliation, selectedEbRoundKey]
+  );
+
+  const paidNumbers = new Set(selectedEbRound?.bills.map((b) => b.consumerNumber));
+  const unpaidServices = EB_CONSUMER_NUMBERS.filter((n) => !paidNumbers.has(n));
+  const extraBillNumbers = (selectedEbRound?.bills ?? [])
+    .map((b) => b.consumerNumber)
+    .filter((n): n is string => !!n && !EB_CONSUMER_NUMBERS.includes(n));
+
+  // Receipts tab: only the newest `receiptsVisibleMonths` calendar months that have receipts.
+  const receiptMonthKeys = useMemo(
+    () => Array.from(new Set(receipts.map((r) => r.receipt_date.slice(0, 7)))).sort().reverse(),
+    [receipts]
+  );
+  const visibleReceipts = useMemo(() => {
+    const visible = new Set(receiptMonthKeys.slice(0, receiptsVisibleMonths));
+    return receipts.filter((r) => r.record_type === "receipt" && visible.has(r.receipt_date.slice(0, 7)));
+  }, [receipts, receiptMonthKeys, receiptsVisibleMonths]);
 
   const handleGenerate = (data: BillData, id: string) => {
     console.log("🎯 handleGenerate called with:", { data, id });
@@ -139,6 +172,12 @@ const Index = () => {
   };
 
   const handleLoadMoreReceipts = async () => {
+    // Older months already fetched? Just reveal the next one - no API call.
+    if (receiptsVisibleMonths < receiptMonthKeys.length) {
+      setReceiptsVisibleMonths((v) => v + 1);
+      return;
+    }
+
     const nextMonths = receiptsMonths + RECEIPTS_MONTHS_STEP;
     setLoadingMore("receipts");
     try {
@@ -146,6 +185,7 @@ const Index = () => {
       setReceiptsHasMore(older.length > receipts.length);
       setReceipts(older);
       setReceiptsMonths(nextMonths);
+      setReceiptsVisibleMonths((v) => v + 1);
     } catch (error) {
       toast.error("Failed to load older receipts");
     } finally {
@@ -209,15 +249,6 @@ const Index = () => {
     setSelectedReceipt(null);
   };
 
-  const handleEbBillClick = (ebBill: ReceiptRecord) => {
-    setSelectedEbBill(ebBill);
-  };
-
-  const handleBackToEbBills = () => {
-    setSelectedEbBill(null);
-  };
-
-
   const handleDeleteReceipt = async (receiptId: string) => {
     try {
       await deleteReceipt(receiptId);
@@ -236,6 +267,31 @@ const Index = () => {
       unitsRecordedDate: today,
       services: defaultEbServices(),
     });
+  };
+
+  // Opens the payment dialog for specific services of a reconciliation round.
+  const openEbPaymentFor = (round: EbReconciliationRound, consumerNumbers: string[]) => {
+    const today = new Date().toISOString().split("T")[0];
+    const billingDate = today.slice(0, 7) === round.periodKey ? today : `${round.periodKey}-01`;
+    setEbPaymentModal({
+      isOpen: true,
+      paymentDate: today,
+      unitsRecordedDate: billingDate,
+      services: defaultEbServices().filter((s) => consumerNumbers.includes(s.consumerNumber)),
+    });
+  };
+
+  const handleConfirmUnmark = async () => {
+    if (!unmarkBill) return;
+    try {
+      await deleteReceipt(unmarkBill.id);
+      toast.success("Marked as not paid");
+      loadReceipts();
+    } catch (error) {
+      toast.error("Failed to update payment");
+    } finally {
+      setUnmarkBill(null);
+    }
   };
 
   const handleEbServiceChange = (index: number, field: "unitsConsumed" | "ebAmount", value: string) => {
@@ -422,7 +478,7 @@ const Index = () => {
                       <div className="text-muted-foreground">Loading receipts...</div>
                     </div>
                   </Card>
-                ) : receipts.filter(receipt => receipt.record_type === "receipt").length === 0 ? (
+                ) : visibleReceipts.length === 0 ? (
                   <Card className="p-6">
                     <div className="text-center py-12">
                       <Receipt className="h-16 w-16 mx-auto mb-4 text-muted-foreground/40" />
@@ -433,11 +489,16 @@ const Index = () => {
                     </div>
                   </Card>
               ) : (
-                receipts
-                  .filter(receipt => receipt.record_type === "receipt")
-                  .map((receipt) => (
+                visibleReceipts
+                  .map((receipt, i, list) => (
+                    <Fragment key={receipt.id}>
+                    {(i === 0 || receipt.receipt_date.slice(0, 7) !== list[i - 1].receipt_date.slice(0, 7)) && (
+                      <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide pt-2">
+                        {format(new Date(`${receipt.receipt_date.slice(0, 7)}-01`), 'MMMM yyyy')}
+                      </h3>
+                    )}
                     <Card 
-                      key={receipt.id} 
+
                       className="p-4 sm:p-6 cursor-pointer hover:shadow-md transition-shadow"
                       onClick={() => handleReceiptClick(receipt)}
                     >
@@ -480,16 +541,17 @@ const Index = () => {
                         </div>
                       </div>
                     </Card>
+                    </Fragment>
                   ))
                 )}
-                {!loading && receiptsHasMore && (
+                {!loading && (receiptsHasMore || receiptsVisibleMonths < receiptMonthKeys.length) && (
                   <Button
                     variant="outline"
                     className="w-full"
                     disabled={loadingMore === "receipts"}
                     onClick={handleLoadMoreReceipts}
                   >
-                    {loadingMore === "receipts" ? "Loading..." : "Load older receipts"}
+                    {loadingMore === "receipts" ? "Loading..." : "Show previous month"}
                   </Button>
                 )}
               </div>
@@ -497,26 +559,10 @@ const Index = () => {
           </TabsContent>
 
           <TabsContent value="eb">
-            {selectedEbBill ? (
+            {selectedEbRound ? (
               <div className="space-y-4">
                 <div className="flex gap-2">
-                  <Button onClick={handleBackToEbBills} variant="outline" className="flex-1">
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                    Back to EB Bills
-                  </Button>
-                </div>
-                <ReceiptDetailView
-                  receipt={selectedEbBill}
-                  onBack={handleBackToEbBills}
-                  onDelete={handleDeleteReceipt}
-                  onRecordPayment={handleRecordPayment}
-                  receiptsCount={selectedEbBill.receipts_count ?? countReceiptsForMonth(ebRecords, selectedEbBill.receipt_date)}
-                />
-              </div>
-            ) : selectedEbRound ? (
-              <div className="space-y-4">
-                <div className="flex gap-2">
-                  <Button onClick={() => setSelectedEbRound(null)} variant="outline" className="flex-1">
+                  <Button onClick={() => setSelectedEbRoundKey(null)} variant="outline" className="flex-1">
                     <ArrowLeft className="mr-2 h-4 w-4" />
                     Back to Reconciliation
                   </Button>
@@ -589,26 +635,46 @@ const Index = () => {
                 </Card>
 
                 <Card className="p-6">
-                  <h4 className="font-semibold mb-3">EB Bills by Service</h4>
-                  {selectedEbRound.bills.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No EB bill recorded yet for this period</p>
-                  ) : (
-                    <div className="divide-y">
-                      {selectedEbRound.bills.map((b, i) => (
-                        <div key={`${b.consumerNumber}-${i}`} className="flex items-center justify-between py-2 text-sm">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-semibold">EB Bills by Service</h4>
+                    {unpaidServices.length > 1 && (
+                      <Button size="sm" onClick={() => openEbPaymentFor(selectedEbRound, unpaidServices)}>
+                        Record {unpaidServices.length} unpaid
+                      </Button>
+                    )}
+                  </div>
+                  <div className="divide-y">
+                    {[...EB_CONSUMER_NUMBERS, ...extraBillNumbers].map((consumerNumber) => {
+                      const bill = selectedEbRound.bills.find((b) => b.consumerNumber === consumerNumber);
+                      return (
+                        <div key={consumerNumber} className="flex items-center justify-between gap-3 py-3 text-sm">
                           <div>
-                            <p className="font-medium">{b.consumerNumber || "Unknown service"}</p>
-                            <p className="text-muted-foreground">
-                              {b.unitsConsumed.toFixed(0)} units
-                              {b.paidDate ? ` • Paid ${format(new Date(b.paidDate), 'MMM dd, yyyy')}` : ""}
-                              {b.receiptNo ? ` • ${b.receiptNo}` : ""}
-                            </p>
+                            <p className="font-medium">{consumerNumber}</p>
+                            {bill ? (
+                              <p className="text-muted-foreground">
+                                Paid • {bill.unitsConsumed.toFixed(0)} units
+                                {bill.paidDate ? ` • ${format(new Date(bill.paidDate), 'MMM dd, yyyy')}` : ""}
+                              </p>
+                            ) : (
+                              <p className="text-amber-600">Not paid</p>
+                            )}
                           </div>
-                          <p className="font-semibold">₹{b.amount.toFixed(2)}</p>
+                          <div className="flex flex-col items-end gap-1">
+                            {bill && <p className="font-semibold">₹{bill.amount.toFixed(2)}</p>}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() =>
+                                bill ? setUnmarkBill(bill) : openEbPaymentFor(selectedEbRound, [consumerNumber])
+                              }
+                            >
+                              {bill ? "Mark unpaid" : "Mark paid"}
+                            </Button>
+                          </div>
                         </div>
-                      ))}
-                    </div>
-                  )}
+                      );
+                    })}
+                  </div>
                 </Card>
               </div>
             ) : (
@@ -630,7 +696,7 @@ const Index = () => {
                       <Card
                         key={round.periodKey}
                         className={`p-4 cursor-pointer hover:shadow-md transition-shadow ${round.isPending ? 'border-dashed' : ''}`}
-                        onClick={() => setSelectedEbRound(round)}
+                        onClick={() => setSelectedEbRoundKey(round.periodKey)}
                       >
                         <div className="flex items-center justify-between mb-3">
                           <h4 className="font-semibold">
@@ -681,82 +747,23 @@ const Index = () => {
                   </div>
                 )}
 
-                {loading ? (
-                <Card className="p-6">
-                  <div className="text-center py-8">
-                    <div className="text-muted-foreground">Loading EB data...</div>
-                  </div>
-                </Card>
-              ) : ebRecords.filter(receipt => receipt.record_type === "eb_bill_paid" || receipt.record_type === "eb_used_aggregate").length === 0 ? (
-                <Card className="p-6">
-                  <div className="text-center py-12">
-                    <Receipt className="h-16 w-16 mx-auto mb-4 text-muted-foreground/40" />
-                    <h3 className="text-lg font-semibold mb-2">No EB Records Found</h3>
-                    <p className="text-muted-foreground mb-4">
-                      No EB bill payments or usage records yet
-                    </p>
-                  </div>
-                </Card>
-              ) : (
-                <div className="space-y-4">
-                  {/* Filter EB bills and Tenant EB Used records */}
-                  {ebRecords
-                    .filter(receipt => receipt.record_type === "eb_bill_paid" || receipt.record_type === "eb_used_aggregate")
-                    .sort((a, b) => new Date(b.receipt_date).getTime() - new Date(a.receipt_date).getTime())
-                    .map((receipt) => (
-                      <Card 
-                        key={receipt.id} 
-                        className="p-4 sm:p-6 cursor-pointer hover:shadow-md transition-shadow"
-                        onClick={() => handleEbBillClick(receipt)}
-                      >
-                        <div className="space-y-4">
-                          <div className="flex items-start justify-between gap-4">
-                            <div>
-                              <h3 className="font-semibold text-lg">{format(new Date(receipt.receipt_date), 'MMMM yyyy')}</h3>
-                              <p className="text-sm text-muted-foreground">
-                                {receipt.tenant_name}
-                                {receipt.consumer_number ? ` • ${receipt.consumer_number}` : ""}
-                              </p>
-                            </div>
-                            <Badge variant="outline" className="text-lg font-semibold">
-                              ₹{receipt.total_amount.toFixed(2)}
-                            </Badge>
-                          </div>
-
-                          {receipt.record_type === "eb_used_aggregate" ? (
-                            <div className="grid grid-cols-2 gap-3 text-sm">
-                              <div>
-                                <p className="text-muted-foreground">Units Consumed</p>
-                                <p className="font-medium">{receipt.units_consumed.toFixed(0)}</p>
-                              </div>
-                              <div>
-                                <p className="text-muted-foreground">Receipts Count</p>
-                                <p className="font-medium">{receipt.receipts_count ?? countReceiptsForMonth(ebRecords, receipt.receipt_date)}</p>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="grid grid-cols-2 gap-3 text-sm">
-                              <div>
-                                <p className="text-muted-foreground">Units Consumed</p>
-                                <p className="font-medium">{receipt.units_consumed.toFixed(0)}</p>
-                              </div>
-                              <div>
-                                <p className="text-muted-foreground">Paid date</p>
-                                {receipt.received_date && receipt.received_date !== '1970-01-01' ? (
-                                  <p className="font-medium text-primary">
-                                    {format(new Date(receipt.received_date), 'MMM dd, yyyy')}
-                                  </p>
-                                ) : (
-                                  <Badge variant="secondary">Pending</Badge>
-                                )}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </Card>
-                    ))}
-                </div>
-              )}
+                {loading && ebRecords.length === 0 ? (
+                  <Card className="p-6">
+                    <div className="text-center py-8">
+                      <div className="text-muted-foreground">Loading EB data...</div>
+                    </div>
+                  </Card>
+                ) : ebReconciliation.length === 0 && (
+                  <Card className="p-6">
+                    <div className="text-center py-12">
+                      <Receipt className="h-16 w-16 mx-auto mb-4 text-muted-foreground/40" />
+                      <h3 className="text-lg font-semibold mb-2">No EB Records Found</h3>
+                      <p className="text-muted-foreground mb-4">
+                        No EB bill payments or usage records yet
+                      </p>
+                    </div>
+                  </Card>
+                )}
               </div>
             )}
           </TabsContent>
@@ -771,6 +778,23 @@ const Index = () => {
         tenantName={paymentModal.tenantName}
         totalAmount={paymentModal.totalAmount}
       />
+
+      {/* Mark-unpaid confirmation */}
+      <AlertDialog open={!!unmarkBill} onOpenChange={(open) => !open && setUnmarkBill(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Mark as not paid?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes the recorded payment for {unmarkBill?.consumerNumber}
+              {unmarkBill ? ` (₹${unmarkBill.amount.toFixed(2)})` : ""}. You can record it again later.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmUnmark}>Mark unpaid</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* EB Payment Modal */}
       <Dialog open={ebPaymentModal.isOpen} onOpenChange={handleEbPaymentModalClose}>

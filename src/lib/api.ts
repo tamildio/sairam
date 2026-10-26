@@ -306,6 +306,7 @@ export interface EbRoundMonthlyCharge {
 }
 
 export interface EbRoundBill {
+  id: string;
   consumerNumber: string | null;
   amount: number;
   unitsConsumed: number;
@@ -326,6 +327,7 @@ export interface EbReconciliationRound {
 
 type ReconciliationInput = Pick<
   ReceiptRecord,
+  | "id"
   | "record_type"
   | "receipt_date"
   | "total_amount"
@@ -415,6 +417,7 @@ export const computeEbReconciliation = (receipts: ReconciliationInput[]): EbReco
       isPending: false,
       monthlyCharges: monthlyChargesFor(prevKey, key),
       bills: bills.map((b) => ({
+        id: b.id,
         consumerNumber: b.consumer_number ?? null,
         amount: b.total_amount,
         unitsConsumed: b.units_consumed,
