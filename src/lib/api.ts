@@ -93,8 +93,16 @@ export const fetchRecentEbRecords = async (months: number) => {
   return records.sort((a, b) => b.receipt_date.localeCompare(a.receipt_date));
 };
 
+// Fields that feed the monthly Tenant EB bill / Tenant EB Used totals.
+const AGGREGATED_FIELDS: (keyof ReceiptData)[] = ["receipt_date", "units_consumed", "eb_charges", "include_in_eb_used"];
+
 export const createReceipt = async (receipt: ReceiptData) => {
   const data = await insertReceipt({ record_type: "receipt", ...receipt });
+
+  // EB bill payments (and other non-tenant rows) don't affect the monthly tenant totals.
+  if (!isRealReceipt({ record_type: receipt.record_type ?? "receipt" })) {
+    return data;
+  }
 
   // One fresh read (reflecting the new receipt) shared by both aggregate updates,
   // instead of each one re-fetching the whole table independently.
@@ -111,6 +119,11 @@ export const createReceipt = async (receipt: ReceiptData) => {
 
 export const updateReceipt = async (id: string, updates: Partial<ReceiptData>) => {
   const data = await patchReceipt(id, updates);
+
+  // e.g. recording a payment date/mode doesn't change any monthly total - skip the read.
+  if (!AGGREGATED_FIELDS.some((field) => field in updates)) {
+    return data;
+  }
 
   try {
     const allReceipts = await listMonth(data.receipt_date);
