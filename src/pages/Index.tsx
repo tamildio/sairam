@@ -23,7 +23,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { fetchRecentTenantReceipts, fetchRecentEbRecords, monthsAgoStart, updateReceipt, deleteReceipt, createReceipt, computeEbReconciliation, EbReconciliationRound, EbRoundBill } from "@/lib/api";
+import { RECENT_RECEIPT_MONTHS, fetchRecentTenantReceipts, fetchRecentEbRecords, monthsAgoStart, updateReceipt, deleteReceipt, createReceipt, computeEbReconciliation, EbReconciliationRound, EbRoundBill } from "@/lib/api";
 import { format } from "date-fns";
 
 interface ReceiptRecord {
@@ -68,7 +68,7 @@ const Index = () => {
   const [selectedEbRoundKey, setSelectedEbRoundKey] = useState<string | null>(null);
   const [unmarkBill, setUnmarkBill] = useState<EbRoundBill | null>(null);
   // Only recent data is loaded up front to keep page loads fast; "load more" widens the window.
-  const RECEIPTS_MONTHS_STEP = 2;
+  const RECEIPTS_MONTHS_STEP = RECENT_RECEIPT_MONTHS;
   const EB_MONTHS_STEP = 8; // ~4 bi-monthly reconciliation rounds
   const [receiptsMonths, setReceiptsMonths] = useState(RECEIPTS_MONTHS_STEP);
   const [receiptsHasMore, setReceiptsHasMore] = useState(true);

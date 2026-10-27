@@ -54,16 +54,26 @@ export const fetchReceipts = async (limit?: number, tenant_name?: string) => {
   return limit ? receipts.slice(0, limit) : receipts;
 };
 
-// The tenant's most recent receipt (for pre-filling "last month's reading"): 1 row, not the table.
-export const fetchLatestTenantReceipt = async (tenant_name: string) => {
-  const [latest] = await listReceipts({ types: ["receipt"], tenant: tenant_name, latest: 1 });
-  return latest ?? null;
-};
+// How many calendar months of tenant receipts are loaded by default (current + previous).
+export const RECENT_RECEIPT_MONTHS = 2;
 
 // Tenant receipts from the current calendar month and the `months - 1` before it.
 export const fetchRecentTenantReceipts = async (months: number) => {
   const receipts = await listReceipts({ types: ["receipt"], since: monthsAgoStart(months - 1) });
   return receipts.sort((a, b) => b.receipt_date.localeCompare(a.receipt_date));
+};
+
+// The tenant's most recent receipt (for pre-filling "last month's reading").
+// Reads the same recent-receipts window the Receipts tab loads, so one request covers every
+// tenant and switching tenants costs no further calls. Only a tenant with no receipt in that
+// window falls back to a 1-row lookup.
+export const fetchLatestTenantReceipt = async (tenant_name: string) => {
+  const recent = await fetchRecentTenantReceipts(RECENT_RECEIPT_MONTHS);
+  const hit = recent.find((r) => r.tenant_name === tenant_name);
+  if (hit) return hit;
+
+  const [latest] = await listReceipts({ types: ["receipt"], tenant: tenant_name, latest: 1 });
+  return latest ?? null;
 };
 
 // Everything the EB tab needs (tenant receipts, EB payments, monthly aggregates) for the
