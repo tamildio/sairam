@@ -54,6 +54,12 @@ export const fetchReceipts = async (limit?: number, tenant_name?: string) => {
   return limit ? receipts.slice(0, limit) : receipts;
 };
 
+// The tenant's most recent receipt (for pre-filling "last month's reading"): 1 row, not the table.
+export const fetchLatestTenantReceipt = async (tenant_name: string) => {
+  const [latest] = await listReceipts({ types: ["receipt"], tenant: tenant_name, latest: 1 });
+  return latest ?? null;
+};
+
 // Tenant receipts from the current calendar month and the `months - 1` before it.
 export const fetchRecentTenantReceipts = async (months: number) => {
   const receipts = await listReceipts({ types: ["receipt"], since: monthsAgoStart(months - 1) });

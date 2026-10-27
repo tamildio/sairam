@@ -76,6 +76,9 @@ const Index = () => {
   const [ebRecords, setEbRecords] = useState<ReceiptRecord[]>([]);
   const [ebMonths, setEbMonths] = useState(EB_MONTHS_STEP);
   const [ebHasMore, setEbHasMore] = useState(true);
+  // EB data is only fetched once the EB tab is first opened.
+  const [ebLoaded, setEbLoaded] = useState(false);
+  const [ebLoading, setEbLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState<"receipts" | "eb" | null>(null);
   // The 3 fixed EB service connections for the house - not user-editable.
   const EB_CONSUMER_NUMBERS = ["09270003185", "092700031893", "09270003636"];
@@ -155,15 +158,26 @@ const Index = () => {
 
 
 
+  const loadEb = async () => {
+    setEbLoading(true);
+    try {
+      setEbRecords(await fetchRecentEbRecords(ebMonths));
+      setEbLoaded(true);
+    } catch (error) {
+      toast.error("Failed to load EB data");
+    } finally {
+      setEbLoading(false);
+    }
+  };
+
+  // Reloads the Receipts tab, plus the EB tab if it has been opened.
   const loadReceipts = async () => {
     setLoading(true);
     try {
-      const [recent, eb] = await Promise.all([
-        fetchRecentTenantReceipts(receiptsMonths),
-        fetchRecentEbRecords(ebMonths),
+      await Promise.all([
+        fetchRecentTenantReceipts(receiptsMonths).then(setReceipts),
+        ebLoaded ? loadEb() : Promise.resolve(),
       ]);
-      setReceipts(recent);
-      setEbRecords(eb);
     } catch (error) {
       // Error handled by API layer
     } finally {
@@ -399,7 +413,13 @@ const Index = () => {
     <div className="min-h-screen bg-background">
       <div className="container max-w-[540px] mx-auto py-4 px-4">
 
-        <Tabs defaultValue="generate" className="w-full">
+        <Tabs
+          defaultValue="generate"
+          className="w-full"
+          onValueChange={(tab) => {
+            if (tab === "eb" && !ebLoaded && !ebLoading) loadEb();
+          }}
+        >
           <TabsList className="grid w-full grid-cols-3 mb-6">
             <TabsTrigger value="generate">Generate Bill</TabsTrigger>
             <TabsTrigger value="receipts">Receipts</TabsTrigger>
@@ -747,7 +767,7 @@ const Index = () => {
                   </div>
                 )}
 
-                {loading && ebRecords.length === 0 ? (
+                {ebLoading && ebRecords.length === 0 ? (
                   <Card className="p-6">
                     <div className="text-center py-8">
                       <div className="text-muted-foreground">Loading EB data...</div>

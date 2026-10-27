@@ -48,6 +48,10 @@ const buildFilter = (params: Record<string, string | undefined>) => {
   if (types.length > 0) {
     clauses.push(`OR(${types.map((t) => `{record_type}='${t}'`).join(",")})`);
   }
+  if (params.tenant) {
+    const escaped = params.tenant.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+    clauses.push(`{tenant_name}='${escaped}'`);
+  }
   if (params.since && ISO_DATE.test(params.since)) {
     clauses.push(`NOT(IS_BEFORE({receipt_date},'${params.since}'))`);
   }
@@ -59,12 +63,17 @@ const buildFilter = (params: Record<string, string | undefined>) => {
 };
 
 // Fetches matching rows, following Airtable's 100-record pagination.
-const listAll = async (filterByFormula?: string) => {
+const listAll = async (filterByFormula?: string, newestFirst = false, maxRecords?: number) => {
   const records: ReturnType<typeof toRecord>[] = [];
   let offset: string | undefined;
   do {
     const query = new URLSearchParams();
     if (filterByFormula) query.set("filterByFormula", filterByFormula);
+    if (newestFirst) {
+      query.set("sort[0][field]", "receipt_date");
+      query.set("sort[0][direction]", "desc");
+    }
+    if (maxRecords) query.set("maxRecords", String(maxRecords));
     if (offset) query.set("offset", offset);
     const qs = query.toString();
     const page = await airtableRequest(qs ? `?${qs}` : "");
@@ -84,7 +93,14 @@ export const handler: Handler = async (event) => {
           const record = await airtableRequest(`/${id}`);
           return { statusCode: 200, body: JSON.stringify(toRecord(record)) };
         }
-        const records = await listAll(buildFilter(event.queryStringParameters ?? {}));
+        const params = event.queryStringParameters ?? {};
+        // `latest=N` returns only the N newest rows (by receipt_date) instead of everything.
+        const latest = Number.parseInt(params.latest ?? "", 10);
+        const records = await listAll(
+          buildFilter(params),
+          latest > 0,
+          latest > 0 ? latest : undefined
+        );
         return { statusCode: 200, body: JSON.stringify(records) };
       }
 

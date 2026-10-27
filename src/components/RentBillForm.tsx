@@ -7,7 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "lucide-react";
 import { toast } from "sonner";
-import { fetchReceipts } from "@/lib/api";
+import { fetchLatestTenantReceipt } from "@/lib/api";
 
 const TENANTS = [
   { name: "Maadi veedu", rent: 2500 },
@@ -160,13 +160,9 @@ export const RentBillForm = ({ onGenerate }: RentBillFormProps) => {
 
       // Get the most recent reading for this tenant
       try {
-        // Get all receipts for this tenant, ordered by date (newest first)
-        const receipts = await fetchReceipts(undefined, tenant.name);
-        
-        if (receipts.length > 0) {
-          // Get the most recent reading (first receipt since they're ordered by date)
-          const latestReceipt = receipts[0];
-          
+        const latestReceipt = await fetchLatestTenantReceipt(tenant.name);
+
+        if (latestReceipt) {
           setFormData(prev => ({
             ...prev,
             lastMonthReading: latestReceipt.eb_reading_this_month,

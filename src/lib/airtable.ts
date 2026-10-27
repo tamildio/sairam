@@ -74,6 +74,8 @@ const writeCache = (key: string, records: ReceiptRecord[]) => {
   }
 };
 
+const inFlight = new Map<string, Promise<ReceiptRecord[]>>();
+
 export const clearListCache = () => {
   try {
     Object.keys(localStorage)
@@ -117,6 +119,8 @@ export interface ListFilter {
   types?: RecordType[];
   since?: string; // YYYY-MM-DD, inclusive, on receipt_date
   until?: string; // YYYY-MM-DD, inclusive, on receipt_date
+  tenant?: string; // exact tenant_name
+  latest?: number; // only the N newest rows (by receipt_date)
 }
 
 export const listReceipts = async (filter: ListFilter = {}): Promise<ReceiptRecord[]> => {
@@ -124,14 +128,27 @@ export const listReceipts = async (filter: ListFilter = {}): Promise<ReceiptReco
   if (filter.types?.length) params.set("types", filter.types.join(","));
   if (filter.since) params.set("since", filter.since);
   if (filter.until) params.set("until", filter.until);
+  if (filter.tenant) params.set("tenant", filter.tenant);
+  if (filter.latest) params.set("latest", String(filter.latest));
   const qs = params.toString();
 
   const cached = readCache(qs);
   if (cached) return cached;
 
-  const records: ReceiptRecord[] = (await request("GET", { query: qs })).filter(isCompleteReceipt);
-  writeCache(qs, records);
-  return records;
+  // Identical requests made at the same moment (e.g. two components mounting together)
+  // share one network call instead of each missing the cache.
+  const pending = inFlight.get(qs);
+  if (pending) return pending;
+
+  const fetching = request("GET", { query: qs })
+    .then((rows: ReceiptRecord[]) => {
+      const records = rows.filter(isCompleteReceipt);
+      writeCache(qs, records);
+      return records;
+    })
+    .finally(() => inFlight.delete(qs));
+  inFlight.set(qs, fetching);
+  return fetching;
 };
 
 export const listAllReceipts = (): Promise<ReceiptRecord[]> => listReceipts();
